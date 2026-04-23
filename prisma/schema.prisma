@@ -1,0 +1,150 @@
+// ─── Generator & Datasource ──────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum Dpe {
+  A
+  B
+  C
+  D
+  E
+  F
+  G
+}
+
+enum PropertyStatus {
+  AVAILABLE    // Disponible à la vente
+  UNDER_OFFER  // Offre en cours de traitement
+  SOLD         // Vendu
+}
+
+enum OfferStatus {
+  PENDING   // En attente de réponse du vendeur
+  ACCEPTED  // Acceptée
+  REJECTED  // Refusée
+}
+
+enum DocumentStatus {
+  MISSING    // Document manquant — action requise
+  PENDING    // Téléversé, en attente de validation
+  VALIDATED  // Vérifié et validé
+}
+
+enum DocumentType {
+  DPE                // Diagnostic de Performance Énergétique
+  TITRE_PROPRIETE    // Titre de propriété (acte notarié)
+  AMIANTE            // Diagnostic amiante
+  PLOMB              // Constat de risque d'exposition au plomb
+  TERMITES           // État relatif à la présence de termites
+  MESURAGE_CARREZ    // Mesurage Loi Carrez
+  ASSAINISSEMENT     // Assainissement non collectif
+  ELECTRICITE        // Diagnostic électricité
+  GAZ                // Diagnostic gaz
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id             String     @id @default(cuid())
+  name           String
+  email          String     @unique
+  hashedPassword String
+  role           Role       @default(BUYER)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  // Relations
+  properties     Property[]
+
+  @@map("users")
+}
+
+model Property {
+  id            String         @id @default(cuid())
+  title         String
+  description   String
+  price         Int            // Prix en euros (entier — l'immobilier n'utilise pas les centimes)
+  originalPrice Int?           // Prix initial avant baisse — pour l'historique Castorus
+  surface       Int            // Surface habitable en m²
+  rooms         Int            // Nombre de pièces
+  bedrooms      Int?           // Nombre de chambres (optionnel)
+  bathrooms     Int?           // Nombre de salles de bain (optionnel)
+  dpe           Dpe
+  energyAuditCost       Int?           // Coût estimé des travaux pour sortir de passoire thermique (F/G)
+  latitude      Float
+  longitude     Float
+  city          String
+  fairScore     Int            // Score d'équité DVF de 0 à 100 (≥80 = Prix juste)
+  cityAvgPerSqm Int            // Prix moyen DVF de référence pour la commune (€/m²)
+  status        PropertyStatus @default(AVAILABLE)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Foreign key
+  sellerId      String
+
+  // Relations
+  seller        User       @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  offers        Offer[]
+  documents     Document[]
+
+  @@index([sellerId])
+  @@index([status])
+  @@index([city])
+  @@index([latitude, longitude]) // Geo bounding-box queries
+  @@map("properties")
+}
+
+model Offer {
+  id               String      @id @default(cuid())
+  amount           Int         // Montant de l'offre en euros
+  buyerName        String
+  buyerEmail       String
+  financingDetails String?     // Ex : "Prêt validé à 80% — Banque Postale — apport 40 000 €"
+  status           OfferStatus @default(PENDING)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  // Foreign key
+  propertyId       String
+
+  // Relations
+  property         Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([status])
+  @@map("offers")
+}
+
+model Document {
+  id         String         @id @default(cuid())
+  type       DocumentType
+  url        String?        // Null tant que le fichier n'est pas encore téléversé
+  status     DocumentStatus @default(MISSING)
+  uploadedAt DateTime?      // Renseigné dès que le fichier est téléversé
+
+  // Foreign key
+  propertyId String
+
+  // Relations
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, type]) // Un seul document de chaque type par annonce
+  @@index([propertyId])
+  @@map("documents")
+}
