@@ -95,3 +95,17 @@ Use real Unsplash URLs (e.g., `https://images.unsplash.com/photo-...`) for all U
 - Provide FULL, copy-pasteable code. No placeholders like `// add logic here`.
 - User-facing text: standard French. Code variables/comments: English.
 DESTRUCTIVE EDITS FORBIDDEN : When adding backend logic  (prisma,APIs) , you MUST preserve the existing frontend UI, state machines, and styling. never overwrite a complex UI with a bare-bones test component.
+## Mobile UX Rules (Critical)
+
+- The map is ALWAYS the primary interface on mobile
+- NEVER redirect user to listings immediately after search
+- Search must trigger map flyTo first, then user selects markers
+- Search bar must auto-hide after selection and reappear after inactivity
+- Map interactions must always feel native (no lag, no blocking layers)
+
+## Interaction Philosophy
+
+- Map-first experience (like Bien'ici, Google Maps)
+- Listings are secondary, triggered by user intent
+- No forced navigation
+- Smooth, premium animations only (no abrupt UI changes)

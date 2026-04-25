@@ -77,6 +77,7 @@ function createMarkerEl(listing: MapListing): HTMLDivElement {
   root.style.cssText = [
     'cursor:pointer',
     'pointer-events:auto',
+    'touch-action:manipulation',
     'user-select:none',
     '-webkit-user-select:none',
   ].join(';');
@@ -401,7 +402,7 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D({ fullscreen = fa
 
   return (
     <div className={containerClass}>
-      <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
+      <div ref={mapContainer} className="absolute inset-0 w-full h-full" style={{ touchAction: 'none' }} />
 
       {/* Internal search + DVF badge — hidden in fullscreen hero mode */}
       {!fullscreen && (

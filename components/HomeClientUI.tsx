@@ -161,6 +161,47 @@ const STYLE_TAG = `
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ── Mobile responsive overrides ────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* NavBar */
+  .jumo-nav          { padding: 12px 16px !important; }
+  .jumo-nav-link     { padding: 6px 10px !important; font-size: 11px !important; }
+
+  /* Landing hero overlay */
+  .hero-overlay      { padding: 20px 20px 56px !important; }
+  .hero-stats        { gap: 24px !important; }
+
+  /* Landing below-fold sections */
+  .features-section  { padding: 40px 16px !important; }
+  .features-grid     { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  .opps-section      { padding: 0 16px 40px !important; }
+  .opps-grid         { grid-template-columns: 1fr !important; }
+
+  /* Map view */
+  .map-view-outer    { overflow: auto !important; }
+  .map-view-grid     {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: 55vh auto !important;
+    height: auto !important;
+    overflow-y: auto !important;
+  }
+  .map-sidebar {
+    border-left: none !important;
+    border-top: 1px solid var(--c-border) !important;
+    height: auto !important;
+    max-height: 50vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Listings view */
+  .listings-container { padding: 16px !important; }
+  .listing-row        { grid-template-columns: 80px 1fr !important; }
+  .listing-actions-col{ display: none !important; }
+
+  /* Shared */
+  .jumo-footer        { padding: 32px 16px !important; }
+}
 `;
 
 /* ───────────── COMPONENTS ───────────── */
@@ -242,7 +283,7 @@ function NavBar({ currentView, setCurrentView }: { currentView: string; setCurre
     { key: "paperwork", label: "Démarches" },
   ];
   return (
-    <nav style={{
+    <nav className="jumo-nav" style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
       padding: "18px 32px",
       borderBottom: "1px solid var(--c-border)",
@@ -256,12 +297,12 @@ function NavBar({ currentView, setCurrentView }: { currentView: string; setCurre
         <img
           src="/logo.png"
           alt="Jumo-Immo"
-          style={{ height: 44, width: "auto", display: "block", imageRendering: "auto" }}
+          style={{ height: 36, width: "auto", display: "block", mixBlendMode: "screen" }}
         />
       </div>
       <div style={{ display: "flex", gap: 4 }}>
         {links.map(l => (
-          <button key={l.key} onClick={() => setCurrentView(l.key)} style={{
+          <button key={l.key} className="jumo-nav-link" onClick={() => setCurrentView(l.key)} style={{
             padding: "8px 18px", borderRadius: 6, fontSize: 13, fontWeight: 500,
             cursor: "pointer", border: "none", fontFamily: "var(--font-body)",
             background: currentView === l.key ? "var(--c-blue-glow)" : "transparent",
@@ -290,6 +331,8 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
   const [searchResults, setSearchResults] = useState<AdresseFeature[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [searchBarVisible, setSearchBarVisible] = useState(true);
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [ref1, vis1] = useReveal();
   const [ref2, vis2] = useReveal();
@@ -317,6 +360,23 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
 
   useEffect(() => { setHighlightedIndex(-1); }, [searchResults]);
 
+  // When bar is hidden, reset the 5-second inactivity timer on any user interaction
+  useEffect(() => {
+    if (searchBarVisible) return;
+    const restart = () => {
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = setTimeout(() => setSearchBarVisible(true), 5000);
+    };
+    window.addEventListener('touchstart', restart, { passive: true });
+    window.addEventListener('mousedown', restart);
+    return () => {
+      window.removeEventListener('touchstart', restart);
+      window.removeEventListener('mousedown', restart);
+    };
+  }, [searchBarVisible]);
+
+  useEffect(() => () => { if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current); }, []);
+
   const handleSelect = (feature: AdresseFeature) => {
     const [lng, lat] = feature.geometry.coordinates;
     mapRef.current?.flyTo(lng, lat);
@@ -324,6 +384,10 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
     setSearchResults([]);
     setHighlightedIndex(-1);
     setIsFocused(false);
+    // Hide search bar; reappear automatically after 5s of no interaction
+    setSearchBarVisible(false);
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    inactivityTimerRef.current = setTimeout(() => setSearchBarVisible(true), 5000);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -389,11 +453,12 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
           </div>
 
           {/* Cinematic top header — fades to transparent, slides down on load */}
-          <div style={{
+          <div className="hero-overlay" style={{
             position: "absolute", top: 0, left: 0, width: "100%",
             padding: "44px 52px 100px",
             background: "linear-gradient(to bottom, rgba(6,11,20,0.92) 0%, rgba(6,11,20,0.6) 40%, transparent 100%)",
             zIndex: 10,
+            pointerEvents: 'none',
             opacity: heroLoaded ? 1 : 0,
             transform: heroLoaded ? "translateY(0)" : "translateY(-22px)",
             transition: "opacity 1s cubic-bezier(0.16,1,0.3,1) 0.3s, transform 1s cubic-bezier(0.16,1,0.3,1) 0.3s",
@@ -417,7 +482,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
             </h1>
 
             {/* Stats row */}
-            <div style={{ display: "flex", gap: 40, flexWrap: "wrap" }}>
+            <div className="hero-stats" style={{ display: "flex", gap: 40, flexWrap: "wrap" }}>
               {[
                 { n: animatedCount.toLocaleString("fr-FR"), label: "Transactions DVF", color: "var(--c-text)" },
                 { n: "0%",   label: "Commission",          color: "var(--c-gold)" },
@@ -435,11 +500,16 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
           <div style={{
             position: "absolute",
             bottom: "14%", left: "50%",
-            transform: heroLoaded
+            transform: !heroLoaded
+              ? "translateX(-50%) translateY(20px)"
+              : searchBarVisible
               ? "translateX(-50%) translateY(0)"
-              : "translateX(-50%) translateY(20px)",
-            opacity: heroLoaded ? 1 : 0,
-            transition: "opacity 1s cubic-bezier(0.16,1,0.3,1) 0.6s, transform 1s cubic-bezier(0.16,1,0.3,1) 0.6s",
+              : "translateX(-50%) translateY(-14px)",
+            opacity: !heroLoaded ? 0 : searchBarVisible ? 1 : 0,
+            pointerEvents: searchBarVisible ? 'auto' : 'none',
+            transition: heroLoaded
+              ? "opacity 0.5s cubic-bezier(0.16,1,0.3,1), transform 0.5s cubic-bezier(0.16,1,0.3,1)"
+              : "opacity 1s cubic-bezier(0.16,1,0.3,1) 0.6s, transform 1s cubic-bezier(0.16,1,0.3,1) 0.6s",
             zIndex: 10,
             width: "min(580px, 88vw)",
           }}>
@@ -568,7 +638,10 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
                 }} />
               )}
               <button
-                onClick={() => setCurrentView("listings")}
+                onClick={() => {
+                  const target = highlightedIndex >= 0 ? searchResults[highlightedIndex] : searchResults[0];
+                  if (target) handleSelect(target);
+                }}
                 style={{
                   padding: "13px 28px", background: "var(--c-blue)", border: "none",
                   color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer",
@@ -592,7 +665,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
         </div>
 
         {/* ── FEATURES ── */}
-        <div ref={ref1} style={{ maxWidth: 1100, margin: "0 auto", padding: "80px 32px" }}>
+        <div ref={ref1} className="features-section" style={{ maxWidth: 1100, margin: "0 auto", padding: "80px 32px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
             <div style={{ width: 40, height: 1, background: "var(--c-blue)" }} />
             <span style={{ fontSize: 11, letterSpacing: "0.25em", textTransform: "uppercase", color: "var(--c-blue)", fontWeight: 600 }}>Nos outils</span>
@@ -601,7 +674,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
             Chaque donnée,{" "}
             <span style={{ color: "var(--c-gold)", fontStyle: "italic" }}>à votre avantage.</span>
           </AnimatedHeading>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+          <div className="features-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
             {[
               { icon: "◎", title: "Score d'équité",    desc: "Notre IA compare chaque annonce aux ventes réelles DVF pour détecter les prix gonflés",       color: "var(--c-blue)" },
               { icon: "◈", title: "Historique complet", desc: "Chaque baisse, chaque hausse, chaque modification — depuis la première publication",          color: "var(--c-gold)" },
@@ -625,7 +698,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
         </div>
 
         {/* ── OPPORTUNITIES ── */}
-        <div ref={ref2} style={{ maxWidth: 1100, margin: "0 auto", padding: "0 32px 80px" }}>
+        <div ref={ref2} className="opps-section" style={{ maxWidth: 1100, margin: "0 auto", padding: "0 32px 80px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 32 }}>
             <AnimatedHeading visible={vis2} as="h2" style={{ fontSize: "clamp(28px, 3.5vw, 44px)", fontWeight: 800, lineHeight: 1.1, letterSpacing: "-0.02em" }}>
               Opportunités du moment
@@ -634,7 +707,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
               Voir tout →
             </button>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+          <div className="opps-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
             {listings.slice(0, 3).map((l, idx) => (
               <div key={l.id} style={{
                 borderRadius: 12, border: "1px solid var(--c-border)", background: "var(--c-bg-card)", overflow: "hidden", cursor: "pointer",
@@ -670,7 +743,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
         </div>
 
         {/* ── FOOTER ── */}
-        <div style={{ textAlign: "center", padding: "40px 32px", borderTop: "1px solid var(--c-border)", fontSize: 12, color: "var(--c-text-dim)", fontFamily: "var(--font-body)" }}>
+        <div className="jumo-footer" style={{ textAlign: "center", padding: "40px 32px", borderTop: "1px solid var(--c-border)", fontSize: 12, color: "var(--c-text-dim)", fontFamily: "var(--font-body)" }}>
           <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, color: "var(--c-text-muted)", fontSize: 14 }}>Jumo-Immo</span>
           <span style={{ margin: "0 12px", color: "var(--c-border)" }}>·</span>
           Données DVF officielles (data.gouv.fr)
@@ -688,10 +761,10 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
   ═══════════════════════════════════════════════════ */
   if (currentView === "map") {
     return (
-      <div style={{ fontFamily: "var(--font-body)", minHeight: "100vh", background: "var(--c-bg)", color: "var(--c-text)", overflow: "hidden" }}>
+      <div className="map-view-outer" style={{ fontFamily: "var(--font-body)", minHeight: "100vh", background: "var(--c-bg)", color: "var(--c-text)", overflow: "hidden" }}>
         <style>{STYLE_TAG}</style>
         <NavBar currentView={currentView} setCurrentView={setCurrentView} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", height: "calc(100vh - 62px)" }}>
+        <div className="map-view-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", height: "calc(100vh - 62px)" }}>
           <div style={{ position: "relative", background: "#070D19" }}>
             <svg viewBox="0 0 560 460" style={{ width: "100%", height: "100%" }}>
               <defs>
@@ -721,7 +794,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
               <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--c-text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--c-red)" }} /> Prix en hausse</div>
             </div>
           </div>
-          <div style={{ background: "var(--c-bg-elevated)", borderLeft: "1px solid var(--c-border)", padding: 24, overflowY: "auto" }}>
+          <div className="map-sidebar" style={{ background: "var(--c-bg-elevated)", borderLeft: "1px solid var(--c-border)", padding: 24, overflowY: "auto" }}>
             {selectedRegion ? (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
@@ -779,7 +852,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
       <div style={{ fontFamily: "var(--font-body)", minHeight: "100vh", background: "var(--c-bg)", color: "var(--c-text)" }}>
         <style>{STYLE_TAG}</style>
         <NavBar currentView={currentView} setCurrentView={setCurrentView} />
-        <div style={{ padding: "28px 32px", maxWidth: 960, margin: "0 auto" }}>
+        <div className="listings-container" style={{ padding: "28px 32px", maxWidth: 960, margin: "0 auto" }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
             {[
               { key: "all",        label: "Toutes" },
@@ -800,7 +873,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {filteredListings.map((l, idx) => (
-              <div key={l.id} style={{ display: "grid", gridTemplateColumns: "130px 1fr auto", borderRadius: 12, border: `1px solid ${hoveredListing === l.id ? "var(--c-blue)" : "var(--c-border)"}`, background: "var(--c-bg-card)", overflow: "hidden", cursor: "pointer", transition: "all 0.3s var(--ease-gleasing)", animation: `fadeUp 0.6s var(--ease-out-expo) ${idx * 0.08}s both` }}
+              <div key={l.id} className="listing-row" style={{ display: "grid", gridTemplateColumns: "130px 1fr auto", borderRadius: 12, border: `1px solid ${hoveredListing === l.id ? "var(--c-blue)" : "var(--c-border)"}`, background: "var(--c-bg-card)", overflow: "hidden", cursor: "pointer", transition: "all 0.3s var(--ease-gleasing)", animation: `fadeUp 0.6s var(--ease-out-expo) ${idx * 0.08}s both` }}
                 onClick={() => router.push(`/annonces/${l.id}`)}
                 onMouseEnter={() => setHoveredListing(l.id)}
                 onMouseLeave={() => setHoveredListing(null)}
@@ -821,7 +894,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
                     <span style={{ fontSize: 11, color: "var(--c-text-dim)" }}>{Math.round(l.price / l.surface).toLocaleString("fr-FR")} €/m²</span>
                   </div>
                 </div>
-                <div style={{ padding: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderLeft: "1px solid var(--c-border)", minWidth: 100 }}>
+                <div className="listing-actions-col" style={{ padding: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderLeft: "1px solid var(--c-border)", minWidth: 100 }}>
                   <FairScoreBadge score={l.fairScore} />
                   <button style={{ marginTop: 12, padding: "8px 18px", borderRadius: 6, background: "var(--c-blue-glow)", border: "1px solid rgba(37,99,235,0.3)", color: "var(--c-blue)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-body)", transition: "all 0.3s ease" }}
                     onClick={e => e.stopPropagation()}
