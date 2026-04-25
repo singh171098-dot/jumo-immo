@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "../../lib/prisma";
-import type { Dpe } from "@prisma/client";
+import type { Dpe, DocumentType } from "@prisma/client";
 
 /* ── French city lookup: coordinates + DVF reference price ──────────────── */
 const CITY_DATA: Record<string, { lat: number; lng: number; avgPerSqm: number }> = {
@@ -75,6 +75,27 @@ export async function createProperty(
   if (rooms < 0 || rooms > 20)       return { success: false, error: "Nombre de pièces invalide." };
   if (!VALID_DPE.includes(dpe))      return { success: false, error: "Classe DPE invalide." };
 
+  /* Validate required documents — server-side gate (mirrors client-side check) */
+  const requiredDocKeys = type === "Appartement"
+    ? ["TITRE_PROPRIETE", "DPE_DOC", "AMIANTE", "PLOMB", "TERMITES", "MESURAGE_CARREZ"]
+    : ["TITRE_PROPRIETE", "DPE_DOC", "AMIANTE", "PLOMB", "TERMITES"];
+
+  const docLabels: Record<string, string> = {
+    TITRE_PROPRIETE: "Titre de propriété",
+    DPE_DOC:         "Rapport DPE",
+    AMIANTE:         "Diagnostic amiante",
+    PLOMB:           "Diagnostic plomb",
+    TERMITES:        "État termites",
+    MESURAGE_CARREZ: "Mesurage Loi Carrez",
+  };
+
+  for (const key of requiredDocKeys) {
+    const file = formData.get(`doc_${key}`) as File | null;
+    if (!file || file.size === 0) {
+      return { success: false, error: `Document obligatoire manquant côté serveur : ${docLabels[key] ?? key}.` };
+    }
+  }
+
   /* Resolve city → coords + DVF average */
   const normalised = city
     .toLowerCase()
@@ -133,25 +154,58 @@ export async function createProperty(
     });
   }
 
-  /* Persist */
+  /* doc_key → DocumentType enum mapping */
+  const DOC_TYPE_MAP: Record<string, DocumentType> = {
+    TITRE_PROPRIETE: "TITRE_PROPRIETE",
+    DPE_DOC:         "DPE",
+    AMIANTE:         "AMIANTE",
+    PLOMB:           "PLOMB",
+    TERMITES:        "TERMITES",
+    MESURAGE_CARREZ: "MESURAGE_CARREZ",
+    ASSAINISSEMENT:  "ASSAINISSEMENT",
+    ELECTRICITE:     "ELECTRICITE",
+    GAZ:             "GAZ",
+  };
+
+  /* Persist property + documents in a single transaction */
   try {
-    const property = await prisma.property.create({
-      data: {
-        title,
-        description,
-        price:        Math.round(price),
-        surface:      Math.round(surface),
-        rooms:        Math.round(rooms),
-        dpe:          dpe as Dpe,
-        city,
-        latitude:     lat,
-        longitude:    lng,
-        fairScore,
-        cityAvgPerSqm: avgPerSqm,
-        status:       "AVAILABLE",
-        sellerId:     seller.id,
-      },
-      select: { id: true },
+    const property = await prisma.$transaction(async tx => {
+      const created = await tx.property.create({
+        data: {
+          title,
+          description,
+          price:         Math.round(price),
+          surface:       Math.round(surface),
+          rooms:         Math.round(rooms),
+          dpe:           dpe as Dpe,
+          city,
+          latitude:      lat,
+          longitude:     lng,
+          fairScore,
+          cityAvgPerSqm: avgPerSqm,
+          status:        "AVAILABLE",
+          sellerId:      seller.id,
+        },
+        select: { id: true },
+      });
+
+      /* Create Document records for every uploaded file */
+      for (const [formKey, dbType] of Object.entries(DOC_TYPE_MAP)) {
+        const file = formData.get(`doc_${formKey}`) as File | null;
+        if (file && file.size > 0) {
+          await tx.document.create({
+            data: {
+              type:       dbType,
+              url:        file.name,   // placeholder — swap for S3 URL in production
+              status:     "PENDING",
+              propertyId: created.id,
+              uploadedAt: new Date(),
+            },
+          });
+        }
+      }
+
+      return created;
     });
 
     revalidatePath("/");

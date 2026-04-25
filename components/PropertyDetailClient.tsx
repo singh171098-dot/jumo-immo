@@ -378,11 +378,17 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
 
             {/* CTAs — desktop only (mobile uses fixed bottom bar) */}
             <div className="hidden lg:flex flex-col gap-3">
-              <button className="w-full py-4 bg-[#2563EB] hover:bg-blue-500 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm">
+              <button
+                onClick={() => alert("Fonctionnalité en cours de développement")}
+                className="w-full py-4 bg-[#2563EB] hover:bg-blue-500 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm"
+              >
                 <Phone size={17} />
                 Contacter le vendeur
               </button>
-              <button className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm">
+              <button
+                onClick={() => alert("Fonctionnalité en cours de développement")}
+                className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm"
+              >
                 <FileText size={17} />
                 Faire une offre
               </button>
@@ -420,11 +426,17 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
           MOBILE FIXED BOTTOM BAR
       ════════════════════════════════════════ */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-gray-950/95 backdrop-blur-xl border-t border-white/10 px-4 py-3 flex gap-3">
-        <button className="flex-1 py-3.5 bg-[#2563EB] hover:bg-blue-500 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-sm">
+        <button
+          onClick={() => alert("Fonctionnalité en cours de développement")}
+          className="flex-1 py-3.5 bg-[#2563EB] hover:bg-blue-500 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
+        >
           <Phone size={16} />
           Contacter
         </button>
-        <button className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-sm">
+        <button
+          onClick={() => alert("Fonctionnalité en cours de développement")}
+          className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
+        >
           <FileText size={16} />
           Faire une offre
         </button>

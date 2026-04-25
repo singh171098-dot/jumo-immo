@@ -57,6 +57,12 @@ enum DocumentType {
   GAZ                // Diagnostic gaz
 }
 
+enum VisitStatus {
+  PENDING    // En attente de confirmation vendeur
+  CONFIRMED  // Confirmée
+  CANCELLED  // Annulée
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -102,6 +108,8 @@ model Property {
   seller        User       @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   offers        Offer[]
   documents     Document[]
+  visits        Visit[]
+  messages      Message[]
 
   @@index([sellerId])
   @@index([status])
