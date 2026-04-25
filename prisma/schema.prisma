@@ -71,6 +71,8 @@ model User {
   email          String     @unique
   hashedPassword String
   role           Role       @default(BUYER)
+  isPremium      Boolean    @default(false)
+  credits        Int        @default(0)
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
@@ -97,6 +99,7 @@ model Property {
   city          String
   fairScore     Int            // Score d'équité DVF de 0 à 100 (≥80 = Prix juste)
   cityAvgPerSqm Int            // Prix moyen DVF de référence pour la commune (€/m²)
+  isBoosted     Boolean        @default(false)
   status        PropertyStatus @default(AVAILABLE)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -155,4 +158,34 @@ model Document {
   @@unique([propertyId, type]) // Un seul document de chaque type par annonce
   @@index([propertyId])
   @@map("documents")
+}
+
+model Visit {
+  id              String      @id @default(cuid())
+  propertyId      String
+  buyerName       String
+  buyerEmail      String
+  slot            DateTime
+  status          VisitStatus @default(PENDING)
+  proofOfFundsUrl String?
+  createdAt       DateTime    @default(now())
+
+  property  Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@map("visits")
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  propertyId String
+  senderName String
+  senderRole String   // "buyer" | "seller"
+  body       String
+  createdAt  DateTime @default(now())
+
+  property  Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@map("messages")
 }

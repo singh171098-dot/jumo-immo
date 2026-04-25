@@ -1,14 +1,17 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
   ArrowLeft, MapPin, Maximize2, BedDouble, Bath,
-  ChevronLeft, ChevronRight, Zap, Share2, Heart, Phone, FileText,
+  ChevronLeft, ChevronRight, Zap, Share2, Heart, Phone, FileText, Calendar,
 } from "lucide-react";
 import { formatPrice } from "../lib/utils/formatters";
 import EnergyUpgradeCalc from "./EnergyUpgradeCalc";
 import PaperworkWizard from "./PaperworkWizard";
+import ChatPanel from "./ChatPanel";
+import VisitBooker from "./VisitBooker";
+import NegotiationAssistant from "./NegotiationAssistant";
 
 /* ── Gallery images ───────────────────────────────────────────────────────── */
 const GALLERY = [
@@ -80,8 +83,11 @@ const stagger = {
 
 /* ── Main component ───────────────────────────────────────────────────────── */
 export default function PropertyDetailClient(p: PropertyDetailProps) {
-  const [activeImg, setActiveImg] = useState(0);
-  const [saved, setSaved] = useState(false);
+  const [activeImg,    setActiveImg]    = useState(0);
+  const [saved,        setSaved]        = useState(false);
+  const [activePanel,    setActivePanel]    = useState<"chat" | "visit" | null>(null);
+  const [suggestedPrice, setSuggestedPrice] = useState<number | undefined>(undefined);
+  const wizardRef = useRef<HTMLDivElement>(null);
 
   /* Derived metrics */
   const pricePerSqm  = Math.round(p.price / p.surface);
@@ -297,6 +303,20 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
               <EnergyUpgradeCalc dpe={p.dpe} surface={p.surface} />
             </motion.div>
 
+            {/* ── Negotiation Assistant ── */}
+            <motion.div variants={fadeUp}>
+              <NegotiationAssistant
+                askingPrice={p.price}
+                surface={p.surface}
+                cityAvgPerSqm={p.cityAvgPerSqm}
+                city={p.city}
+                onPropose={(price) => {
+                  setSuggestedPrice(price);
+                  wizardRef.current?.scrollIntoView({ behavior: "smooth" });
+                }}
+              />
+            </motion.div>
+
             {/* Seller mention */}
             <motion.div
               variants={fadeUp}
@@ -379,14 +399,21 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
             {/* CTAs — desktop only (mobile uses fixed bottom bar) */}
             <div className="hidden lg:flex flex-col gap-3">
               <button
-                onClick={() => alert("Fonctionnalité en cours de développement")}
+                onClick={() => setActivePanel("chat")}
                 className="w-full py-4 bg-[#2563EB] hover:bg-blue-500 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm"
               >
                 <Phone size={17} />
                 Contacter le vendeur
               </button>
               <button
-                onClick={() => alert("Fonctionnalité en cours de développement")}
+                onClick={() => setActivePanel("visit")}
+                className="w-full py-4 bg-white/[0.06] hover:bg-white/10 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm border border-white/10"
+              >
+                <Calendar size={17} />
+                Réserver une visite
+              </button>
+              <button
+                onClick={() => wizardRef.current?.scrollIntoView({ behavior: "smooth" })}
                 className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm"
               >
                 <FileText size={17} />
@@ -397,6 +424,9 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
           </motion.div>
         </div>
       </div>
+
+      {/* Scroll anchor for "Faire une offre" */}
+      <div ref={wizardRef} />
 
       {/* ════════════════════════════════════════
           PAPERWORK WIZARD — full width
@@ -418,6 +448,7 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
             askingPrice={p.price}
             cityAvgPerSqm={p.cityAvgPerSqm}
             surface={p.surface}
+            suggestedOfferPrice={suggestedPrice}
           />
         </div>
       </motion.div>
@@ -427,20 +458,41 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
       ════════════════════════════════════════ */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-gray-950/95 backdrop-blur-xl border-t border-white/10 px-4 py-3 flex gap-3">
         <button
-          onClick={() => alert("Fonctionnalité en cours de développement")}
+          onClick={() => setActivePanel("chat")}
           className="flex-1 py-3.5 bg-[#2563EB] hover:bg-blue-500 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
         >
           <Phone size={16} />
           Contacter
         </button>
         <button
-          onClick={() => alert("Fonctionnalité en cours de développement")}
+          onClick={() => setActivePanel("visit")}
+          className="px-4 py-3.5 bg-white/[0.06] hover:bg-white/10 text-white rounded-xl transition-colors flex items-center justify-center border border-white/10"
+          aria-label="Réserver une visite"
+        >
+          <Calendar size={16} />
+        </button>
+        <button
+          onClick={() => wizardRef.current?.scrollIntoView({ behavior: "smooth" })}
           className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
         >
           <FileText size={16} />
           Faire une offre
         </button>
       </div>
+
+      <ChatPanel
+        propertyId={p.id}
+        sellerName={p.sellerName}
+        propertyTitle={p.title}
+        isOpen={activePanel === "chat"}
+        onClose={() => setActivePanel(null)}
+      />
+      <VisitBooker
+        propertyId={p.id}
+        propertyTitle={p.title}
+        isOpen={activePanel === "visit"}
+        onClose={() => setActivePanel(null)}
+      />
 
     </main>
   );

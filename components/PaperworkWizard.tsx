@@ -9,12 +9,15 @@ import {
 } from "lucide-react";
 import { formatPrice } from "../lib/utils/formatters";
 import UploadLink from "./UploadLink";
+import PaywallModal from "./PaywallModal";
 
 /* ── Props ───────────────────────────────────────────────────────────────── */
 interface PaperworkWizardProps {
-  askingPrice?: number;
-  cityAvgPerSqm?: number;
-  surface?: number;
+  askingPrice?:         number;
+  cityAvgPerSqm?:       number;
+  surface?:             number;
+  /** Pre-fills the offer price input — set by NegotiationAssistant */
+  suggestedOfferPrice?: number;
 }
 
 /* ── DDT checklist items ─────────────────────────────────────────────────── */
@@ -80,6 +83,7 @@ export default function PaperworkWizard({
   askingPrice = 0,
   cityAvgPerSqm = 3800,
   surface = 0,
+  suggestedOfferPrice,
 }: PaperworkWizardProps) {
 
   const [step, setStep]       = useState<StepKey>("OFFER");
@@ -90,6 +94,16 @@ export default function PaperworkWizard({
   const [propertyAddress,  setPropertyAddress]  = useState("");
   const [offerPrice,       setOfferPrice]       = useState(askingPrice ? String(askingPrice) : "");
   const [loanAmount,       setLoanAmount]       = useState("");
+
+  /* When NegotiationAssistant proposes a price, pre-fill the offer input and show Step 1 */
+  useEffect(() => {
+    if (suggestedOfferPrice && suggestedOfferPrice > 0) {
+      setOfferPrice(String(suggestedOfferPrice));
+      setOfferGenerated(false); // reset preview so user sees the pre-filled form
+      setStep("OFFER");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestedOfferPrice]);
   const [offerGenerated,   setOfferGenerated]   = useState(false);
   const [offerRef]  = useState(() => `OA-${Math.random().toString(36).toUpperCase().slice(2, 8)}`);
   const [offerDate] = useState(() =>
@@ -144,7 +158,10 @@ export default function PaperworkWizard({
   const [idDoc,          setIdDoc]          = useState<File | null>(null);
   const [civilStatusDoc, setCivilStatusDoc] = useState<File | null>(null);
   const [ficheEtatCivil, setFicheEtatCivil] = useState<File | null>(null);
-  const [notarySent,     setNotarySent]     = useState(false);
+  const [notarySent,       setNotarySent]       = useState(false);
+  /* Premium gate — Instant Notary Pack */
+  const [isPremiumWizard,   setIsPremiumWizard]   = useState(false);
+  const [showWizardPaywall, setShowWizardPaywall] = useState(false);
 
   /* ── Derived ── */
   const financingClause = loanAmount
@@ -650,14 +667,20 @@ export default function PaperworkWizard({
                 {/* Notary export CTA */}
                 {!notarySent ? (
                   <button
-                    onClick={handleNotaryExport}
+                    onClick={() => {
+                      if (!idDoc || !civilStatusDoc || !ficheEtatCivil) return;
+                      if (!isPremiumWizard) { setShowWizardPaywall(true); return; }
+                      handleNotaryExport();
+                    }}
                     disabled={!idDoc || !civilStatusDoc || !ficheEtatCivil}
                     className="w-full py-4 bg-gradient-to-r from-[#1E3A8A] to-blue-600 hover:from-blue-800 hover:to-blue-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-black rounded-xl text-sm transition-all hover:shadow-lg hover:shadow-blue-500/20 hover:-translate-y-0.5 disabled:translate-y-0 active:translate-y-0 flex items-center justify-center gap-2"
                   >
                     <Send size={16} />
                     {!idDoc || !civilStatusDoc || !ficheEtatCivil
                       ? "Complétez les documents acheteur"
-                      : "Envoyer au notaire"
+                      : isPremiumWizard
+                      ? "Envoyer au notaire"
+                      : "⭐ Pack Notaire Instantané"
                     }
                   </button>
                 ) : (
@@ -682,6 +705,17 @@ export default function PaperworkWizard({
           </motion.div>
         </AnimatePresence>
       </div>
+
+      <PaywallModal
+        isOpen={showWizardPaywall}
+        onClose={() => setShowWizardPaywall(false)}
+        featureName="Pack Notaire Instantané"
+        onUnlock={() => {
+          setIsPremiumWizard(true);
+          setShowWizardPaywall(false);
+          handleNotaryExport();
+        }}
+      />
     </div>
   );
 }

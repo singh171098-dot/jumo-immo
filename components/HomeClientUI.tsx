@@ -31,7 +31,7 @@ interface Region {
 interface Listing {
   id: string; type: string; city: string; price: number; surface: number;
   rooms: number; dpe: string; priceHistory: number[]; daysOnMarket: number;
-  fairScore: number; img: string;
+  fairScore: number; img: string; isBoosted: boolean;
 }
 
 // Shape received from the Server Component — only serializable primitives
@@ -46,6 +46,7 @@ export interface DbProperty {
   city: string;
   fairScore: number;
   cityAvgPerSqm: number;
+  isBoosted: boolean;
   createdAtMs: number;
   lat: number | null;
   lng: number | null;
@@ -98,6 +99,7 @@ function dbToListings(dbProperties: DbProperty[]): Listing[] {
       priceHistory,
       daysOnMarket,
       fairScore: p.fairScore,
+      isBoosted: p.isBoosted,
       img: type === "Maison" ? "house" : type === "Terrain" ? "land" : "apt",
     };
   });
@@ -721,6 +723,9 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
                 <div style={{ height: 120, background: l.fairScore > 70 ? "linear-gradient(135deg, #0B2E1F, var(--c-bg-card))" : l.fairScore > 50 ? "linear-gradient(135deg, #2D2410, var(--c-bg-card))" : "linear-gradient(135deg, #2D1010, var(--c-bg-card))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, opacity: 0.5, position: "relative" }}>
                   {l.type === "Maison" ? "⌂" : l.type === "Terrain" ? "▦" : "⊞"}
                   <div style={{ position: "absolute", top: 12, right: 12 }}><DPEBadge dpe={l.dpe} /></div>
+                  {l.isBoosted && (
+                    <div style={{ position: "absolute", top: 12, left: 12, background: "linear-gradient(135deg,#F59E0B,#D97706)", color: "#fff", fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.06em", fontFamily: "var(--font-body)" }}>★ PREMIUM</div>
+                  )}
                 </div>
                 <div style={{ padding: 20 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
@@ -882,6 +887,9 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
                   {l.type === "Maison" ? "⌂" : l.type === "Terrain" ? "▦" : "⊞"}
                 </div>
                 <div style={{ padding: 18 }}>
+                  {l.isBoosted && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 8, background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", color: "#F59E0B", fontSize: 9, fontWeight: 700, padding: "3px 10px", borderRadius: 6, fontFamily: "var(--font-body)", letterSpacing: "0.06em" }}>★ ANNONCE BOOSTÉE</div>
+                  )}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                     <span style={{ fontSize: 20, fontWeight: 800, fontFamily: "var(--font-display)" }}>{l.price.toLocaleString("fr-FR")} €</span>
                     <DPEBadge dpe={l.dpe} />
