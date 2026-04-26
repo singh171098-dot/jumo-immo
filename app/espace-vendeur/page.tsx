@@ -1,25 +1,22 @@
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { prisma } from "../../lib/prisma";
 import EspaceVendeurClient from "./EspaceVendeurClient";
 import type { SerializedOffer } from "./EspaceVendeurClient";
 
 export default async function EspaceVendeurPage() {
-  /* Use the first SELLER in the DB (seed creates one) */
-  const seller = await prisma.user.findFirst({
-    where:  { role: "SELLER" },
-    select: { id: true, name: true },
-  });
+  const session = await auth();
+  if (!session?.user) redirect("/");
 
-  const properties = seller
-    ? await prisma.property.findMany({
-        where:   { sellerId: seller.id },
-        include: {
-          offers:   { orderBy: { createdAt: "desc" } },
-          messages: { orderBy: { createdAt: "desc" } },
-          visits:   { orderBy: { createdAt: "desc" } },
-        },
-        orderBy: { createdAt: "desc" },
-      })
-    : [];
+  const properties = await prisma.property.findMany({
+    where:   { sellerId: session.user.id },
+    include: {
+      offers:   { orderBy: { createdAt: "desc" } },
+      messages: { orderBy: { createdAt: "desc" } },
+      visits:   { orderBy: { createdAt: "desc" } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
   /* Flatten + serialize dates so Next.js can pass to client component */
   const offers: SerializedOffer[] = properties.flatMap(p =>
@@ -39,7 +36,7 @@ export default async function EspaceVendeurPage() {
 
   return (
     <EspaceVendeurClient
-      sellerName={seller?.name ?? "Jean"}
+      sellerName={session.user.name ?? "Vendeur"}
       offers={offers}
     />
   );

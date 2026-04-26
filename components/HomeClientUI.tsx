@@ -1,7 +1,9 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import Map3D, { type MapHandle } from "./Map3D";
+import AuthModal from "./AuthModal";
 
 /* ───────────── TYPES ───────────── */
 interface AdresseFeature {
@@ -293,13 +295,22 @@ function DPEBadge({ dpe }: { dpe: string }) {
   );
 }
 
-function NavBar({ currentView, setCurrentView }: { currentView: string; setCurrentView: (v: string) => void }) {
+interface NavBarProps {
+  currentView:    string;
+  setCurrentView: (v: string) => void;
+  sessionUser:    { name: string; role: string } | null;
+  onOpenAuth:     () => void;
+}
+
+function NavBar({ currentView, setCurrentView, sessionUser, onOpenAuth }: NavBarProps) {
   const links = [
     { key: "map",       label: "Carte" },
     { key: "listings",  label: "Annonces" },
     { key: "news",      label: "Actualités" },
     { key: "paperwork", label: "Démarches" },
   ];
+  const dashboardHref = sessionUser?.role === "SELLER" ? "/espace-vendeur" : "/espace-acheteur";
+
   return (
     <nav className="jumo-nav" style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -318,7 +329,8 @@ function NavBar({ currentView, setCurrentView }: { currentView: string; setCurre
           style={{ height: 36, width: "auto", display: "block", mixBlendMode: "screen" }}
         />
       </div>
-      <div style={{ display: "flex", gap: 4 }}>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
         {links.map(l => (
           <button key={l.key} className="jumo-nav-link" onClick={() => setCurrentView(l.key)} style={{
             padding: "8px 18px", borderRadius: 6, fontSize: 13, fontWeight: 500,
@@ -328,15 +340,62 @@ function NavBar({ currentView, setCurrentView }: { currentView: string; setCurre
             transition: "all 0.3s ease", letterSpacing: "0.02em",
           }}>{l.label}</button>
         ))}
+
+        {/* ── Auth zone ── */}
+        {sessionUser ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 12 }}>
+            <a
+              href={dashboardHref}
+              style={{
+                padding: "8px 18px", borderRadius: 6, fontSize: 13, fontWeight: 600,
+                background: "var(--c-blue)", color: "#fff", textDecoration: "none",
+                fontFamily: "var(--font-body)", letterSpacing: "0.02em",
+                transition: "background 0.25s ease",
+              }}
+            >
+              Mon espace
+            </a>
+            <button
+              onClick={() => signOut({ redirectTo: "/" })}
+              style={{
+                padding: "8px 14px", borderRadius: 6, fontSize: 12, fontWeight: 500,
+                cursor: "pointer", border: "1px solid var(--c-border)",
+                background: "transparent", color: "var(--c-text-muted)",
+                fontFamily: "var(--font-body)", letterSpacing: "0.02em",
+                transition: "all 0.25s ease",
+              }}
+            >
+              Déconnexion
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={onOpenAuth}
+            style={{
+              marginLeft: 12, padding: "8px 20px", borderRadius: 6, fontSize: 13, fontWeight: 600,
+              cursor: "pointer", border: "none", fontFamily: "var(--font-body)",
+              background: "var(--c-blue)", color: "#fff", letterSpacing: "0.02em",
+              transition: "background 0.25s ease",
+            }}
+          >
+            Se connecter
+          </button>
+        )}
       </div>
     </nav>
   );
 }
 
 /* ───────────── MAIN APP ───────────── */
-export default function HomeClientUI({ dbProperties }: { dbProperties: DbProperty[] }) {
+interface HomeClientProps {
+  dbProperties: DbProperty[];
+  sessionUser:  { name: string; role: string } | null;
+}
+
+export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientProps) {
   const router = useRouter();
   const [currentView, setCurrentView] = useState("landing");
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [animatedCount, setAnimatedCount] = useState(0);
@@ -460,7 +519,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
     return (
       <div style={{ fontFamily: "var(--font-body)", minHeight: "100vh", background: "var(--c-bg)", color: "var(--c-text)", overflowX: "hidden" }}>
         <style>{STYLE_TAG}</style>
-        <NavBar currentView={currentView} setCurrentView={setCurrentView} />
+        <NavBar currentView={currentView} setCurrentView={setCurrentView} sessionUser={sessionUser} onOpenAuth={() => setShowAuthModal(true)} />
 
         {/* ── HERO — Cinematic full-viewport 3D map ── */}
         <div className="hero-root" style={{ position: "relative", height: "calc(100vh - 76px)", overflow: "hidden", display: "flex", alignItems: "center" }}>
@@ -863,6 +922,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
           <span style={{ margin: "0 12px", color: "var(--c-border)" }}>·</span>
           Sans commission
         </div>
+        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       </div>
     );
   }
@@ -874,7 +934,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
     return (
       <div className="map-view-outer" style={{ fontFamily: "var(--font-body)", minHeight: "100vh", background: "var(--c-bg)", color: "var(--c-text)", overflow: "hidden" }}>
         <style>{STYLE_TAG}</style>
-        <NavBar currentView={currentView} setCurrentView={setCurrentView} />
+        <NavBar currentView={currentView} setCurrentView={setCurrentView} sessionUser={sessionUser} onOpenAuth={() => setShowAuthModal(true)} />
         <div className="map-view-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", height: "calc(100vh - 62px)" }}>
           <div style={{ position: "relative", background: "#070D19" }}>
             <svg viewBox="0 0 560 460" style={{ width: "100%", height: "100%" }}>
@@ -951,6 +1011,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
             )}
           </div>
         </div>
+        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       </div>
     );
   }
@@ -962,7 +1023,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
     return (
       <div style={{ fontFamily: "var(--font-body)", minHeight: "100vh", background: "var(--c-bg)", color: "var(--c-text)" }}>
         <style>{STYLE_TAG}</style>
-        <NavBar currentView={currentView} setCurrentView={setCurrentView} />
+        <NavBar currentView={currentView} setCurrentView={setCurrentView} sessionUser={sessionUser} onOpenAuth={() => setShowAuthModal(true)} />
         <div className="listings-container" style={{ padding: "28px 32px", maxWidth: 960, margin: "0 auto" }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
             {[
@@ -1020,6 +1081,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
             ))}
           </div>
         </div>
+        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       </div>
     );
   }
@@ -1031,7 +1093,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
     return (
       <div style={{ fontFamily: "var(--font-body)", minHeight: "100vh", background: "var(--c-bg)", color: "var(--c-text)" }}>
         <style>{STYLE_TAG}</style>
-        <NavBar currentView={currentView} setCurrentView={setCurrentView} />
+        <NavBar currentView={currentView} setCurrentView={setCurrentView} sessionUser={sessionUser} onOpenAuth={() => setShowAuthModal(true)} />
         <div style={{ padding: "36px 32px", maxWidth: 740, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
             <div style={{ width: 40, height: 1, background: "var(--c-gold)" }} />
@@ -1066,6 +1128,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
             </div>
           </div>
         </div>
+        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       </div>
     );
   }
@@ -1086,7 +1149,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
     return (
       <div style={{ fontFamily: "var(--font-body)", minHeight: "100vh", background: "var(--c-bg)", color: "var(--c-text)" }}>
         <style>{STYLE_TAG}</style>
-        <NavBar currentView={currentView} setCurrentView={setCurrentView} />
+        <NavBar currentView={currentView} setCurrentView={setCurrentView} sessionUser={sessionUser} onOpenAuth={() => setShowAuthModal(true)} />
         <div style={{ padding: "36px 32px", maxWidth: 700, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
             <div style={{ width: 40, height: 1, background: "var(--c-blue)" }} />
@@ -1116,6 +1179,7 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
             </div>
           </div>
         </div>
+        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       </div>
     );
   }
