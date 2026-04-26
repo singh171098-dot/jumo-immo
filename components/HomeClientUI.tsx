@@ -170,8 +170,24 @@ const STYLE_TAG = `
   .jumo-nav          { padding: 12px 16px !important; }
   .jumo-nav-link     { padding: 6px 10px !important; font-size: 11px !important; }
 
-  /* Landing hero overlay */
-  .hero-overlay      { padding: 20px 20px 56px !important; }
+  /* Landing hero — stack vertically on mobile */
+  .hero-root         { align-items: flex-start !important; }
+  .hero-overlay      {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    padding: 32px 20px 72px !important;
+    gap: 28px !important;
+  }
+  .hero-text-col     { max-width: 100% !important; }
+  .hero-cards-col    {
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    gap: 10px !important;
+    width: 100% !important;
+    padding-bottom: 4px !important;
+  }
+  .hero-prop-card    { min-width: 220px !important; width: 220px !important; flex-shrink: 0 !important; }
   .hero-stats        { gap: 24px !important; }
 
   /* Landing below-fold sections */
@@ -447,56 +463,146 @@ export default function HomeClientUI({ dbProperties }: { dbProperties: DbPropert
         <NavBar currentView={currentView} setCurrentView={setCurrentView} />
 
         {/* ── HERO — Cinematic full-viewport 3D map ── */}
-        <div style={{ position: "relative", height: "calc(100vh - 76px)", overflow: "hidden" }}>
+        <div className="hero-root" style={{ position: "relative", height: "calc(100vh - 76px)", overflow: "hidden", display: "flex", alignItems: "center" }}>
 
           {/* Map3D — absolute fill, z-index 0 */}
           <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
             <Map3D fullscreen ref={mapRef} properties={dbProperties} />
           </div>
 
-          {/* Cinematic top header — fades to transparent, slides down on load */}
+          {/* Gradient layer — separate from content so text column doesn't define overlay width */}
+          <div style={{
+            position: "absolute", inset: 0, zIndex: 1, pointerEvents: "none",
+            background: [
+              "linear-gradient(to right,  rgba(6,11,20,0.96) 0%, rgba(6,11,20,0.72) 42%, rgba(6,11,20,0.10) 72%, transparent 100%)",
+              "linear-gradient(to bottom, rgba(6,11,20,0.50) 0%, transparent 28%)",
+            ].join(", "),
+          }} />
+
+          {/* ── FLEX CONTENT LAYER — in-flow, not absolute ── */}
           <div className="hero-overlay" style={{
-            position: "absolute", top: 0, left: 0, width: "100%",
-            padding: "44px 52px 100px",
-            background: "linear-gradient(to bottom, rgba(6,11,20,0.92) 0%, rgba(6,11,20,0.6) 40%, transparent 100%)",
-            zIndex: 10,
-            pointerEvents: 'none',
+            position: "relative", height: "100%", zIndex: 10,
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 40,
+            padding: "0 52px",
+            width: "100%",
+            pointerEvents: "none",
             opacity: heroLoaded ? 1 : 0,
             transform: heroLoaded ? "translateY(0)" : "translateY(-22px)",
             transition: "opacity 1s cubic-bezier(0.16,1,0.3,1) 0.3s, transform 1s cubic-bezier(0.16,1,0.3,1) 0.3s",
           }}>
-            {/* Overline */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-              <div style={{ width: 28, height: 1, background: "var(--c-gold)", flexShrink: 0 }} />
-              <span style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: "var(--c-gold)", fontWeight: 600, fontFamily: "var(--font-body)" }}>
-                Immobilier entre particuliers
-              </span>
-            </div>
 
-            {/* Headline */}
-            <h1 style={{
-              fontFamily: "var(--font-display)", fontSize: "clamp(34px, 4.5vw, 58px)",
-              fontWeight: 800, lineHeight: 1.08, letterSpacing: "-0.03em",
-              color: "var(--c-text)", margin: "0 0 36px", maxWidth: 660,
+            {/* LEFT — Text column */}
+            <div className="hero-text-col" style={{
+              display: "flex", flexDirection: "column", gap: 28,
+              maxWidth: 560, flexShrink: 0,
             }}>
-              Le vrai prix de l'immobilier.{" "}
-              <span style={{ color: "var(--c-gold)", fontStyle: "italic" }}>Sans agence.</span>
-            </h1>
+              {/* Overline */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 28, height: 1, background: "var(--c-gold)", flexShrink: 0 }} />
+                <span style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: "var(--c-gold)", fontWeight: 600, fontFamily: "var(--font-body)" }}>
+                  Immobilier entre particuliers
+                </span>
+              </div>
 
-            {/* Stats row */}
-            <div className="hero-stats" style={{ display: "flex", gap: 40, flexWrap: "wrap" }}>
-              {[
-                { n: animatedCount.toLocaleString("fr-FR"), label: "Transactions DVF", color: "var(--c-text)" },
-                { n: "0%",   label: "Commission",          color: "var(--c-gold)" },
-                { n: "100%", label: "Données officielles", color: "var(--c-blue)" },
-              ].map((s, i) => (
-                <div key={i}>
-                  <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--font-display)", color: s.color, letterSpacing: "-0.02em" }}>{s.n}</div>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 4, letterSpacing: "0.08em", textTransform: "uppercase" }}>{s.label}</div>
-                </div>
-              ))}
+              {/* Headline */}
+              <h1 style={{
+                fontFamily: "var(--font-display)", fontSize: "clamp(34px, 4.5vw, 58px)",
+                fontWeight: 800, lineHeight: 1.08, letterSpacing: "-0.03em",
+                color: "var(--c-text)", margin: 0,
+              }}>
+                Le vrai prix de l'immobilier.{" "}
+                <span style={{ color: "var(--c-gold)", fontStyle: "italic" }}>Sans agence.</span>
+              </h1>
+
+              {/* Stats row */}
+              <div className="hero-stats" style={{ display: "flex", gap: 40, flexWrap: "wrap" }}>
+                {[
+                  { n: animatedCount.toLocaleString("fr-FR"), label: "Transactions DVF", color: "var(--c-text)" },
+                  { n: "0%",   label: "Commission",          color: "var(--c-gold)" },
+                  { n: "100%", label: "Données officielles", color: "var(--c-blue)" },
+                ].map((s, i) => (
+                  <div key={i}>
+                    <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--font-display)", color: s.color, letterSpacing: "-0.02em" }}>{s.n}</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 4, letterSpacing: "0.08em", textTransform: "uppercase" }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+
+            {/* RIGHT — Property preview cards */}
+            {listings.length > 0 && (
+              <div className="hero-cards-col" style={{
+                display: "flex", flexDirection: "column", gap: 10,
+                flexShrink: 0, pointerEvents: "auto",
+              }}>
+                {listings.slice(0, 3).map((l, idx) => {
+                  const typeEmoji  = l.type === "Maison" ? "⌂" : l.type === "Terrain" ? "▦" : "⊞";
+                  const scoreColor = l.fairScore >= 80 ? "var(--c-emerald)" : l.fairScore >= 60 ? "var(--c-gold)" : "var(--c-red)";
+                  const thumbBg    = l.fairScore > 70
+                    ? "rgba(5,150,105,0.18)"
+                    : l.fairScore > 50 ? "rgba(200,165,92,0.15)" : "rgba(239,68,68,0.14)";
+                  return (
+                    <div
+                      key={l.id}
+                      className="hero-prop-card"
+                      onClick={() => router.push(`/annonces/${l.id}`)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: "11px 14px", borderRadius: 14, width: 272,
+                        background: "rgba(10,16,30,0.74)",
+                        backdropFilter: "blur(20px) saturate(1.6)",
+                        WebkitBackdropFilter: "blur(20px) saturate(1.6)",
+                        border: "1px solid rgba(255,255,255,0.09)",
+                        boxShadow: "0 6px 20px rgba(0,0,0,0.35)",
+                        cursor: "pointer",
+                        opacity: heroLoaded ? 1 : 0,
+                        transform: heroLoaded ? "translateX(0)" : "translateX(20px)",
+                        transition: `opacity 0.7s ease ${0.45 + idx * 0.11}s, transform 0.7s cubic-bezier(0.16,1,0.3,1) ${0.45 + idx * 0.11}s, border-color 0.2s ease, background 0.2s ease`,
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
+                        e.currentTarget.style.background  = "rgba(10,16,30,0.90)";
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)";
+                        e.currentTarget.style.background  = "rgba(10,16,30,0.74)";
+                      }}
+                    >
+                      {/* Type thumbnail */}
+                      <div style={{
+                        width: 42, height: 42, borderRadius: 10, flexShrink: 0,
+                        background: thumbBg, display: "flex",
+                        alignItems: "center", justifyContent: "center", fontSize: 20,
+                      }}>
+                        {typeEmoji}
+                      </div>
+
+                      {/* Info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 15, fontWeight: 800, fontFamily: "var(--font-display)", color: "var(--c-text)", letterSpacing: "-0.02em", lineHeight: 1 }}>
+                          {l.price.toLocaleString("fr-FR")} €
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 3, fontFamily: "var(--font-body)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {l.type} · {l.city} · {l.surface} m²
+                        </div>
+                      </div>
+
+                      {/* FairScore */}
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: 17, fontWeight: 800, color: scoreColor, fontFamily: "var(--font-display)", lineHeight: 1 }}>{l.fairScore}</div>
+                        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)", letterSpacing: "0.07em", textTransform: "uppercase", marginTop: 2 }}>score</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+          </div>{/* end FLEX CONTENT LAYER */}
 
           {/* Floating search — pill + dropdown, centred near bottom */}
           <div style={{
