@@ -33,7 +33,7 @@ export async function bookVisit(data: {
   buyerEmail: string;
   slot: string;           // ISO date string
   proofOfFundsUrl?: string;
-}): Promise<{ success: boolean; visitId?: string; error?: string }> {
+}): Promise<{ success: boolean; visitId?: string; referenceId?: string; error?: string }> {
   const { propertyId, buyerName, buyerEmail, slot, proofOfFundsUrl } = data;
   if (!propertyId || !buyerName.trim() || !buyerEmail.trim() || !slot) {
     return { success: false, error: "Veuillez remplir tous les champs." };
@@ -50,7 +50,8 @@ export async function bookVisit(data: {
       },
       select: { id: true },
     });
-    return { success: true, visitId: visit.id };
+    const referenceId = `VISIT-${visit.id.slice(0, 6).toUpperCase()}`;
+    return { success: true, visitId: visit.id, referenceId };
   } catch {
     return { success: false, error: "Erreur lors de la réservation. Réessayez." };
   }

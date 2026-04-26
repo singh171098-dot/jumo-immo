@@ -459,7 +459,7 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
         const features = m.queryRenderedFeatures(e.point, { layers: [LAYER_CLS] });
         if (!features.length) return;
         const clusterId = features[0].properties?.cluster_id as number;
-        const coords    = (features[0].geometry as { coordinates: [number, number] }).coordinates;
+        const coords    = (features[0].geometry as unknown as { coordinates: [number, number] }).coordinates;
         (m.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource).getClusterExpansionZoom(
           clusterId,
           (err, zoom) => {
@@ -498,7 +498,7 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
           if (!id || seen.has(id)) return;
           seen.add(id);
 
-          const coords = (feature.geometry as { coordinates: [number, number] }).coordinates;
+          const coords = (feature.geometry as unknown as { coordinates: [number, number] }).coordinates;
 
           /* 4. Build popup listing shape from feature properties */
           const listing: MapListing = {
