@@ -169,10 +169,16 @@ const STYLE_TAG = `
 }
 
 /* ── Mobile responsive overrides ────────────────────────────────────── */
+.jumo-nav-links { display: flex; align-items: center; gap: 4px; }
+
 @media (max-width: 767px) {
   /* NavBar */
   .jumo-nav          { padding: 12px 16px !important; }
   .jumo-nav-link     { padding: 6px 10px !important; font-size: 11px !important; }
+  .jumo-nav-links    { display: none !important; }
+
+  /* Hero stat numbers */
+  .hero-stat-num     { font-size: clamp(16px, 5vw, 22px) !important; }
 
   /* Landing hero — stack vertically on mobile */
   .hero-root         { align-items: flex-start !important; }
@@ -332,57 +338,64 @@ function NavBar({ currentView, setCurrentView, sessionUser, onOpenAuth }: NavBar
         />
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-        {links.map(l => (
-          <button key={l.key} className="jumo-nav-link" onClick={() => setCurrentView(l.key)} style={{
-            padding: "8px 18px", borderRadius: 6, fontSize: 13, fontWeight: 500,
-            cursor: "pointer", border: "none", fontFamily: "var(--font-body)",
-            background: currentView === l.key ? "var(--c-blue-glow)" : "transparent",
-            color: currentView === l.key ? "var(--c-blue)" : "var(--c-text-muted)",
-            transition: "all 0.3s ease", letterSpacing: "0.02em",
-          }}>{l.label}</button>
-        ))}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
 
-        {/* ── Auth zone ── */}
-        {sessionUser ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 12 }}>
-            <a
-              href={dashboardHref}
-              style={{
-                padding: "8px 18px", borderRadius: 6, fontSize: 13, fontWeight: 600,
-                background: "var(--c-blue)", color: "#fff", textDecoration: "none",
-                fontFamily: "var(--font-body)", letterSpacing: "0.02em",
-                transition: "background 0.25s ease",
-              }}
-            >
-              Mon espace
-            </a>
-            <button
-              onClick={() => signOut({ redirectTo: "/" })}
-              style={{
-                padding: "8px 14px", borderRadius: 6, fontSize: 12, fontWeight: 500,
-                cursor: "pointer", border: "1px solid var(--c-border)",
-                background: "transparent", color: "var(--c-text-muted)",
-                fontFamily: "var(--font-body)", letterSpacing: "0.02em",
-                transition: "all 0.25s ease",
-              }}
-            >
-              Déconnexion
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={onOpenAuth}
-            style={{
-              marginLeft: 12, padding: "8px 20px", borderRadius: 6, fontSize: 13, fontWeight: 600,
+        {/* Nav links — hidden on mobile via .jumo-nav-links CSS class */}
+        <div className="jumo-nav-links">
+          {links.map(l => (
+            <button key={l.key} className="jumo-nav-link" onClick={() => setCurrentView(l.key)} style={{
+              padding: "8px 18px", borderRadius: 6, fontSize: 13, fontWeight: 500,
               cursor: "pointer", border: "none", fontFamily: "var(--font-body)",
-              background: "var(--c-blue)", color: "#fff", letterSpacing: "0.02em",
-              transition: "background 0.25s ease",
-            }}
-          >
-            Se connecter
-          </button>
-        )}
+              background: currentView === l.key ? "var(--c-blue-glow)" : "transparent",
+              color: currentView === l.key ? "var(--c-blue)" : "var(--c-text-muted)",
+              transition: "all 0.3s ease", letterSpacing: "0.02em",
+            }}>{l.label}</button>
+          ))}
+        </div>
+
+        {/* ── Auth zone — always visible, flex-shrink: 0 prevents squish ── */}
+        <div style={{ flexShrink: 0 }}>
+          {sessionUser ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <a
+                href={dashboardHref}
+                style={{
+                  padding: "8px 18px", borderRadius: 6, fontSize: 13, fontWeight: 600,
+                  background: "var(--c-blue)", color: "#fff", textDecoration: "none",
+                  fontFamily: "var(--font-body)", letterSpacing: "0.02em",
+                  transition: "background 0.25s ease", whiteSpace: "nowrap",
+                }}
+              >
+                Mon espace
+              </a>
+              <button
+                onClick={() => signOut({ redirectTo: "/" })}
+                style={{
+                  padding: "8px 14px", borderRadius: 6, fontSize: 12, fontWeight: 500,
+                  cursor: "pointer", border: "1px solid var(--c-border)",
+                  background: "transparent", color: "var(--c-text-muted)",
+                  fontFamily: "var(--font-body)", letterSpacing: "0.02em",
+                  transition: "all 0.25s ease", whiteSpace: "nowrap",
+                }}
+              >
+                Déconnexion
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onOpenAuth}
+              style={{
+                padding: "8px 20px", borderRadius: 6, fontSize: 13, fontWeight: 600,
+                cursor: "pointer", border: "none", fontFamily: "var(--font-body)",
+                background: "var(--c-blue)", color: "#fff", letterSpacing: "0.02em",
+                transition: "background 0.25s ease", whiteSpace: "nowrap",
+              }}
+            >
+              Se connecter
+            </button>
+          )}
+        </div>
+
       </div>
     </nav>
   );
@@ -405,8 +418,10 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
   const [sortBy, setSortBy] = useState("fairScore");
   const [hoveredListing, setHoveredListing] = useState<string | null>(null);
   const [heroLoaded, setHeroLoaded] = useState(false);
+  const [isUiVisible, setIsUiVisible] = useState(true);
   const mapRef = useRef<MapHandle | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const uiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [searchResults, setSearchResults] = useState<AdresseFeature[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -488,6 +503,12 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
     }
   };
 
+  function handleMapInteraction() {
+    setIsUiVisible(false);
+    if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current);
+    uiTimeoutRef.current = setTimeout(() => setIsUiVisible(true), 5000);
+  }
+
   useEffect(() => {
     if (currentView !== "landing") return;
     let count = 0;
@@ -527,7 +548,11 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
         <div className="hero-root" style={{ position: "relative", height: "calc(100vh - 76px)", overflow: "hidden", display: "flex", alignItems: "center" }}>
 
           {/* Map3D — absolute fill, z-index 0 */}
-          <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
+          <div
+            style={{ position: "absolute", inset: 0, zIndex: 0 }}
+            onTouchStart={handleMapInteraction}
+            onMouseDown={handleMapInteraction}
+          >
             <Map3D fullscreen ref={mapRef} properties={dbProperties} />
           </div>
 
@@ -551,9 +576,9 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
             padding: "0 52px",
             width: "100%",
             pointerEvents: "none",
-            opacity: heroLoaded ? 1 : 0,
+            opacity: heroLoaded ? (isUiVisible ? 1 : 0) : 0,
             transform: heroLoaded ? "translateY(0)" : "translateY(-22px)",
-            transition: "opacity 1s cubic-bezier(0.16,1,0.3,1) 0.3s, transform 1s cubic-bezier(0.16,1,0.3,1) 0.3s",
+            transition: "opacity 0.5s ease, transform 1s cubic-bezier(0.16,1,0.3,1) 0.3s",
           }}>
 
             {/* LEFT — Text column */}
@@ -587,7 +612,7 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
                   { n: "100%", label: "Données officielles", color: "var(--c-blue)" },
                 ].map((s, i) => (
                   <div key={i}>
-                    <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--font-display)", color: s.color, letterSpacing: "-0.02em" }}>{s.n}</div>
+                    <div className="hero-stat-num" style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--font-display)", color: s.color, letterSpacing: "-0.02em" }}>{s.n}</div>
                     <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 4, letterSpacing: "0.08em", textTransform: "uppercase" }}>{s.label}</div>
                   </div>
                 ))}
