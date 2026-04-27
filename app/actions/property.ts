@@ -190,7 +190,7 @@ export async function createProperty(
           longitude:     lng,
           fairScore,
           cityAvgPerSqm: avgPerSqm,
-          images,
+          images:        images || [],
           status:        "AVAILABLE",
           sellerId:      seller.id,
         },
