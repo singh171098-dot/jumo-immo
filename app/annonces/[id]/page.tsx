@@ -45,6 +45,7 @@ export default async function AnnoncePage({ params }: PageProps) {
       cityAvgPerSqm={property.cityAvgPerSqm}
       priceDropDate={priceDropDate}
       sellerName={property.seller.name}
+      images={property.images}
     />
   );
 }

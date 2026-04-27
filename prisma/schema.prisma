@@ -99,6 +99,7 @@ model Property {
   city          String
   fairScore     Int            // Score d'équité DVF de 0 à 100 (≥80 = Prix juste)
   cityAvgPerSqm Int            // Prix moyen DVF de référence pour la commune (€/m²)
+  images        String[]       // Cloudinary secure_url list (ordered, first = cover)
   isBoosted     Boolean        @default(false)
   status        PropertyStatus @default(AVAILABLE)
   createdAt     DateTime       @default(now())

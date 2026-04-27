@@ -33,7 +33,7 @@ interface Region {
 interface Listing {
   id: string; type: string; city: string; price: number; surface: number;
   rooms: number; dpe: string; priceHistory: number[]; daysOnMarket: number;
-  fairScore: number; img: string; isBoosted: boolean;
+  fairScore: number; img: string; coverImage: string | null; isBoosted: boolean;
 }
 
 // Shape received from the Server Component — only serializable primitives
@@ -52,6 +52,7 @@ export interface DbProperty {
   createdAtMs: number;
   lat: number | null;
   lng: number | null;
+  images: string[];
 }
 
 
@@ -103,6 +104,7 @@ function dbToListings(dbProperties: DbProperty[]): Listing[] {
       fairScore: p.fairScore,
       isBoosted: p.isBoosted,
       img: type === "Maison" ? "house" : type === "Terrain" ? "land" : "apt",
+      coverImage: p.images[0] ?? null,
     };
   });
 }
@@ -631,13 +633,17 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
                         e.currentTarget.style.background  = "rgba(10,16,30,0.74)";
                       }}
                     >
-                      {/* Type thumbnail */}
+                      {/* Type thumbnail — real image or emoji fallback */}
                       <div style={{
                         width: 42, height: 42, borderRadius: 10, flexShrink: 0,
-                        background: thumbBg, display: "flex",
+                        background: thumbBg, display: "flex", overflow: "hidden",
                         alignItems: "center", justifyContent: "center", fontSize: 20,
                       }}>
-                        {typeEmoji}
+                        {l.coverImage
+                          // eslint-disable-next-line @next/next/no-img-element
+                          ? <img src={l.coverImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          : typeEmoji
+                        }
                       </div>
 
                       {/* Info */}
@@ -885,8 +891,12 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
                 onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--c-blue)"; e.currentTarget.style.transform = "translateY(-4px)"; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--c-border)"; e.currentTarget.style.transform = "translateY(0)"; }}
               >
-                <div style={{ height: 120, background: l.fairScore > 70 ? "linear-gradient(135deg, #0B2E1F, var(--c-bg-card))" : l.fairScore > 50 ? "linear-gradient(135deg, #2D2410, var(--c-bg-card))" : "linear-gradient(135deg, #2D1010, var(--c-bg-card))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, opacity: 0.5, position: "relative" }}>
-                  {l.type === "Maison" ? "⌂" : l.type === "Terrain" ? "▦" : "⊞"}
+                <div style={{ height: 120, background: l.fairScore > 70 ? "linear-gradient(135deg, #0B2E1F, var(--c-bg-card))" : l.fairScore > 50 ? "linear-gradient(135deg, #2D2410, var(--c-bg-card))" : "linear-gradient(135deg, #2D1010, var(--c-bg-card))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, opacity: 0.5, position: "relative", overflow: "hidden" }}>
+                  {l.coverImage
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={l.coverImage} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 1 }} />
+                    : (l.type === "Maison" ? "⌂" : l.type === "Terrain" ? "▦" : "⊞")
+                  }
                   <div style={{ position: "absolute", top: 12, right: 12 }}><DPEBadge dpe={l.dpe} /></div>
                   {l.isBoosted && (
                     <div style={{ position: "absolute", top: 12, left: 12, background: "linear-gradient(135deg,#F59E0B,#D97706)", color: "#fff", fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.06em", fontFamily: "var(--font-body)" }}>★ PREMIUM</div>
@@ -1050,8 +1060,12 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
                 onMouseEnter={() => setHoveredListing(l.id)}
                 onMouseLeave={() => setHoveredListing(null)}
               >
-                <div style={{ background: l.fairScore > 70 ? "linear-gradient(135deg, #0B2E1F, var(--c-bg-card))" : l.fairScore > 50 ? "linear-gradient(135deg, #2D2410, var(--c-bg-card))" : "linear-gradient(135deg, #2D1010, var(--c-bg-card))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, opacity: 0.5 }}>
-                  {l.type === "Maison" ? "⌂" : l.type === "Terrain" ? "▦" : "⊞"}
+                <div style={{ background: l.fairScore > 70 ? "linear-gradient(135deg, #0B2E1F, var(--c-bg-card))" : l.fairScore > 50 ? "linear-gradient(135deg, #2D2410, var(--c-bg-card))" : "linear-gradient(135deg, #2D1010, var(--c-bg-card))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, opacity: 0.5, overflow: "hidden", position: "relative" }}>
+                  {l.coverImage
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={l.coverImage} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 1 }} />
+                    : (l.type === "Maison" ? "⌂" : l.type === "Terrain" ? "▦" : "⊞")
+                  }
                 </div>
                 <div style={{ padding: 18 }}>
                   {l.isBoosted && (

@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Loader2, CheckCircle2, AlertCircle, ArrowRight, RotateCcw } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, ArrowRight, RotateCcw, ImagePlus, X } from "lucide-react";
+import { CldUploadWidget } from "next-cloudinary";
 import { createProperty, type CreatePropertyResult } from "../app/actions/property";
 import UploadLink from "./UploadLink";
+
+const CLOUDINARY_PRESET = "jumo_immo"; // unsigned upload preset in your Cloudinary account
 
 /* ── Static config ───────────────────────────────────────────────────────── */
 const PROPERTY_TYPES = ["Appartement", "Maison", "Studio", "Terrain", "Villa", "Loft"];
@@ -69,6 +72,7 @@ export default function PropertyForm() {
   const [error,              setError]              = useState<string | null>(null);
   const [result,             setResult]             = useState<CreatePropertyResult | null>(null);
   const [docs,               setDocs]               = useState<Record<DocKey, File | null>>(EMPTY_DOCS);
+  const [imageUrls,          setImageUrls]          = useState<string[]>([]);
 
   const setDoc = (key: DocKey) => (file: File | null) =>
     setDocs(prev => ({ ...prev, [key]: file }));
@@ -96,19 +100,25 @@ export default function PropertyForm() {
     fd.set("dpe",         selectedDpe);
     fd.set("insulation",  selectedInsulation);
     fd.set("heatingType", selectedHeating);
+    fd.set("images",      JSON.stringify(imageUrls));
 
     /* Append document files for server-side validation + storage */
     for (const [key, file] of Object.entries(docs) as [DocKey, File | null][]) {
       if (file) fd.append(`doc_${key}`, file);
     }
 
-    const res = await createProperty(fd);
-    setLoading(false);
-
-    if (res.success) {
-      setResult(res);
-    } else {
-      setError(res.error ?? "Une erreur est survenue.");
+    try {
+      const res = await createProperty(fd);
+      if (res.success) {
+        setResult(res);
+      } else {
+        setError(res.error ?? "Une erreur est survenue.");
+      }
+    } catch (err) {
+      console.error("[PropertyForm]", err);
+      setError("Une erreur inattendue est survenue. Veuillez réessayer.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -158,6 +168,7 @@ export default function PropertyForm() {
                 setSelectedType("Appartement");
                 setError(null);
                 setDocs(EMPTY_DOCS);
+                setImageUrls([]);
               }}
               className="flex items-center justify-center gap-2 px-5 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all active:scale-[.98]"
             >
@@ -284,6 +295,80 @@ export default function PropertyForm() {
             ))}
           </div>
           <input type="hidden" name="dpe" value={selectedDpe} />
+        </div>
+
+        {/* ── Photos du bien (Cloudinary) ── */}
+        <div className="border-t border-slate-100 pt-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                Photos du bien
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Jusqu'à 5 photos · La première sera la photo de couverture
+              </p>
+            </div>
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
+              imageUrls.length > 0 ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+            }`}>
+              {imageUrls.length} / 5 ajoutée{imageUrls.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+
+          {/* Preview grid */}
+          {imageUrls.length > 0 && (
+            <div className="grid grid-cols-3 gap-2">
+              {imageUrls.map((url, i) => (
+                <div key={url} className="relative group aspect-video rounded-xl overflow-hidden border border-slate-200">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                  {i === 0 && (
+                    <span className="absolute top-1.5 left-1.5 bg-[#1E3A8A] text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                      Couverture
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setImageUrls(prev => prev.filter((_, idx) => idx !== i))}
+                    className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition hover:bg-red-500"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Upload button */}
+          {imageUrls.length < 5 && (
+            <CldUploadWidget
+              uploadPreset={CLOUDINARY_PRESET}
+              options={{
+                multiple: true,
+                maxFiles: 5 - imageUrls.length,
+                resourceType: "image",
+                clientAllowedFormats: ["jpg", "jpeg", "png", "webp"],
+                maxFileSize: 10_000_000,
+              }}
+              onSuccess={(result) => {
+                const url = (result?.info as { secure_url?: string })?.secure_url;
+                if (!url) return;
+                setImageUrls(prev => prev.length < 5 ? [...prev, url] : prev);
+              }}
+            >
+              {({ open }) => (
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => open()}
+                  className="w-full flex items-center justify-center gap-2.5 py-4 border-2 border-dashed border-slate-200 hover:border-[#1E3A8A]/50 hover:bg-blue-50/50 rounded-xl text-slate-400 hover:text-[#1E3A8A] text-sm font-semibold transition-all duration-200 disabled:opacity-50"
+                >
+                  <ImagePlus size={18} />
+                  {imageUrls.length === 0 ? "Ajouter des photos" : "Ajouter d'autres photos"}
+                </button>
+              )}
+            </CldUploadWidget>
+          )}
         </div>
 
         {/* ── Required documents (publication gate) ── */}

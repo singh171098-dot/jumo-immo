@@ -22,6 +22,7 @@ export default async function Home() {
         latitude: true,
         longitude: true,
         cityAvgPerSqm: true,
+        images: true,
       },
     }),
   ]);
@@ -41,6 +42,7 @@ export default async function Home() {
     createdAtMs: p.createdAt.getTime(),
     lat: p.latitude,
     lng: p.longitude,
+    images: p.images,
   }));
 
   const sessionUser = session?.user

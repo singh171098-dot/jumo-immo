@@ -13,8 +13,8 @@ import ChatPanel from "./ChatPanel";
 import VisitBooker from "./VisitBooker";
 import NegotiationAssistant from "./NegotiationAssistant";
 
-/* ── Gallery images ───────────────────────────────────────────────────────── */
-const GALLERY = [
+/* ── Fallback gallery when no images uploaded ─────────────────────────────── */
+const FALLBACK_GALLERY = [
   "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1600&q=80",
   "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1600&q=80",
   "https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?w=1600&q=80",
@@ -69,6 +69,7 @@ export interface PropertyDetailProps {
   cityAvgPerSqm: number;
   priceDropDate: string;
   sellerName: string;
+  images: string[];
 }
 
 /* ── Animation variants ───────────────────────────────────────────────────── */
@@ -83,6 +84,8 @@ const stagger = {
 
 /* ── Main component ───────────────────────────────────────────────────────── */
 export default function PropertyDetailClient(p: PropertyDetailProps) {
+  const gallery = p.images.length > 0 ? p.images : FALLBACK_GALLERY;
+
   const [activeImg,    setActiveImg]    = useState(0);
   const [saved,        setSaved]        = useState(false);
   const [activePanel,    setActivePanel]    = useState<"chat" | "visit" | null>(null);
@@ -109,8 +112,8 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
 
   const dpeBg = DPE_BG[p.dpe] ?? "bg-gray-500";
 
-  const prev = () => setActiveImg(i => (i - 1 + GALLERY.length) % GALLERY.length);
-  const next = () => setActiveImg(i => (i + 1) % GALLERY.length);
+  const prev = () => setActiveImg(i => (i - 1 + gallery.length) % gallery.length);
+  const next = () => setActiveImg(i => (i + 1) % gallery.length);
 
   /* Metrics list — all string values for simplicity */
   const metrics: { icon: React.ReactNode; label: string; value: string; isDpe?: boolean }[] = [
@@ -134,7 +137,7 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
         <AnimatePresence mode="wait">
           <motion.img
             key={activeImg}
-            src={GALLERY[activeImg]}
+            src={gallery[activeImg]}
             alt=""
             className="absolute inset-0 w-full h-full object-cover"
             initial={{ opacity: 0, scale: 1.04 }}
@@ -184,7 +187,7 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
 
         {/* Gallery thumbnail strip */}
         <div className="absolute bottom-24 right-5 flex gap-1.5 z-10">
-          {GALLERY.map((src, i) => (
+          {gallery.map((src, i) => (
             <button
               key={i}
               onClick={() => setActiveImg(i)}
@@ -197,7 +200,7 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
 
         {/* Dot indicators */}
         <div className="absolute bottom-14 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
-          {GALLERY.map((_, i) => (
+          {gallery.map((_, i) => (
             <button
               key={i}
               onClick={() => setActiveImg(i)}

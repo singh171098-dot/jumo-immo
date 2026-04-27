@@ -3,13 +3,14 @@ import { useState, useTransition } from "react";
 import {
   Eye, Heart, TrendingUp, Check, X,
   Star, Zap, FileText, CheckCircle2, MessageSquare, Calendar,
+  LayoutDashboard, Home, Inbox,
 } from "lucide-react";
 import DossierJuridique from "../../components/DossierJuridique";
 import PropertyForm    from "../../components/PropertyForm";
 import PaywallModal    from "../../components/PaywallModal";
 import { acceptOffer, refuseOffer } from "../actions/communication";
 
-/* ── Serialized offer type (dates as ISO strings for client boundary) ────── */
+/* ── Types ───────────────────────────────────────────────────────────────── */
 export interface SerializedOffer {
   id:               string;
   amount:           number;
@@ -23,10 +24,11 @@ export interface SerializedOffer {
   createdAt:        string;
 }
 
-/* ── Individual offer card ───────────────────────────────────────────────── */
+type Tab = "dashboard" | "annonce" | "dossier" | "offres";
+
+/* ── Individual offer card (unchanged) ───────────────────────────────────── */
 function OfferCard({ offer }: { offer: SerializedOffer }) {
   const [pending, startTransition] = useTransition();
-  /* optimistic local status so UI updates immediately without full reload */
   const [localStatus, setLocalStatus] = useState<SerializedOffer["status"]>(offer.status);
 
   function handleAccept() {
@@ -99,11 +101,19 @@ interface Props {
   offers:     SerializedOffer[];
 }
 
+const NAV: { tab: Tab; icon: React.ReactNode; label: string }[] = [
+  { tab: "dashboard", icon: <LayoutDashboard className="w-5 h-5" />, label: "Tableau de bord"  },
+  { tab: "annonce",   icon: <Home            className="w-5 h-5" />, label: "Mon Annonce"      },
+  { tab: "dossier",   icon: <FileText        className="w-5 h-5" />, label: "Dossier Juridique" },
+  { tab: "offres",    icon: <Inbox           className="w-5 h-5" />, label: "Offres reçues"    },
+];
+
 export default function EspaceVendeurClient({ sellerName, offers }: Props) {
   const [isPremium,      setIsPremium]      = useState(false);
   const [showPaywall,    setShowPaywall]    = useState(false);
   const [paywallFeature, setPaywallFeature] = useState("");
   const [isBoosted,      setIsBoosted]      = useState(false);
+  const [activeTab,      setActiveTab]      = useState<Tab>("dashboard");
 
   function openPaywall(feature: string) {
     setPaywallFeature(feature);
@@ -115,259 +125,292 @@ export default function EspaceVendeurClient({ sellerName, offers }: Props) {
     setShowPaywall(false);
   }
 
-  const pendingOffers   = offers.filter(o => o.status === "PENDING");
-  const resolvedOffers  = offers.filter(o => o.status !== "PENDING");
+  const pendingOffers  = offers.filter(o => o.status === "PENDING");
+  const resolvedOffers = offers.filter(o => o.status !== "PENDING");
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="min-h-screen flex bg-slate-50 font-sans">
 
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Bonjour, {sellerName}</h1>
-        <p className="text-slate-500 mt-1 font-medium">Voici l'activité de votre annonce aujourd'hui.</p>
-      </div>
+      {/* ── Royal Blue Sidebar ── */}
+      <aside className="w-64 bg-[#1E3A8A] text-white flex flex-col fixed h-full shadow-2xl z-20">
+        <div className="px-5 py-4 border-b border-blue-800/50">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Jumo-Immo" className="h-9 w-auto" style={{ mixBlendMode: "screen" }} />
+          <p className="text-blue-200 text-[10px] mt-2 uppercase tracking-widest font-bold">Espace Vendeur</p>
+        </div>
 
-      {/* ── Premium Status Banner ── */}
-      {isPremium ? (
-        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 shadow-lg shadow-amber-100/50 rounded-2xl p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-            <Star className="w-6 h-6 text-amber-500" fill="currentColor" />
-          </div>
-          <div>
-            <p className="font-black text-amber-900 text-base">Compte Premium actif ✓</p>
-            <p className="text-amber-700 text-sm mt-0.5">Toutes les fonctionnalités sont déverrouillées</p>
-          </div>
-          <div className="ml-auto text-right shrink-0">
-            <p className="text-xs font-bold text-amber-600 uppercase tracking-widest">Économie réalisée</p>
-            <p className="text-2xl font-black text-amber-900">10 000 €</p>
-            <p className="text-[10px] text-amber-600">de frais d'agence évités</p>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-gradient-to-r from-slate-50 to-blue-50/50 border border-slate-200 shadow-lg shadow-slate-100/50 rounded-2xl p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-            <Zap className="w-6 h-6 text-slate-400" />
-          </div>
-          <div>
-            <p className="font-black text-slate-900 text-base">Compte Gratuit</p>
-            <p className="text-slate-500 text-sm mt-0.5">
-              Publication gratuite · Outils premium disponibles à 19€
-            </p>
-          </div>
-          <button
-            onClick={() => openPaywall("Jumo Premium")}
-            className="ml-auto shrink-0 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-amber-200 active:scale-[.98]"
-          >
-            Passer à Premium — 19€
-          </button>
-        </div>
-      )}
+        <nav className="flex-1 p-4 space-y-2">
+          {NAV.map(({ tab, icon, label }) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition text-left ${
+                activeTab === tab
+                  ? "bg-white/10 text-white shadow-inner"
+                  : "text-blue-200 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              {icon} {label}
+            </button>
+          ))}
+        </nav>
+      </aside>
 
-      {/* Analytics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl p-6 flex items-center gap-5 transition hover:-translate-y-1">
-          <div className="p-4 bg-blue-50 rounded-xl text-blue-600"><Eye className="w-6 h-6" /></div>
-          <div>
-            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Vues (7j)</p>
-            <p className="text-3xl font-black text-slate-900">245</p>
-          </div>
-        </div>
-        <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl p-6 flex items-center gap-5 transition hover:-translate-y-1">
-          <div className="p-4 bg-pink-50 rounded-xl text-pink-600"><Heart className="w-6 h-6" /></div>
-          <div>
-            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Favoris</p>
-            <p className="text-3xl font-black text-slate-900">18</p>
-          </div>
-        </div>
-        <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl p-6 flex items-center gap-5 transition hover:-translate-y-1">
-          <div className="p-4 bg-emerald-50 rounded-xl text-[#10B981]"><TrendingUp className="w-6 h-6" /></div>
-          <div>
-            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Valeur DVF</p>
-            <p className="text-3xl font-black text-slate-900">340 000 €</p>
-          </div>
-        </div>
-      </div>
+      {/* ── Main content ── */}
+      <main className="flex-1 ml-64 p-8">
+        <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
-      {/* ── Premium Features ── */}
-      <div>
-        <div className="mb-5">
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Outils Premium</h2>
-          <p className="text-slate-500 text-sm mt-1 font-medium">
-            Sans commission · Paiement unique · Déblocage immédiat
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {/* Header — always visible */}
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Bonjour, {sellerName}</h1>
+            <p className="text-slate-500 mt-1 font-medium">Voici l'activité de votre annonce aujourd'hui.</p>
+          </div>
 
-          {/* A — Boost Listing */}
-          <div className={`bg-white/80 backdrop-blur-xl border rounded-2xl p-6 shadow-lg transition-all ${
-            isBoosted ? "border-amber-200 shadow-amber-100/50" : "border-slate-200 shadow-slate-200/40"
-          }`}>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${isBoosted ? "bg-amber-100" : "bg-slate-100"}`}>
-              <TrendingUp className={`w-5 h-5 ${isBoosted ? "text-amber-600" : "text-slate-400"}`} />
-            </div>
-            <h3 className="font-black text-slate-900 mb-1">Boost de visibilité</h3>
-            <p className="text-slate-500 text-sm mb-4 leading-relaxed">
-              {isBoosted
-                ? "Votre annonce est propulsée en tête des résultats pendant 30 jours."
-                : "Propulsez votre annonce en haut de la carte et des résultats de recherche."}
-            </p>
-            {isBoosted ? (
-              <div className="flex items-center gap-2 text-amber-600 font-bold text-sm">
-                <Star size={15} fill="currentColor" /> Boost actif · 30 jours restants
+          {/* ══════════════ DASHBOARD TAB ══════════════ */}
+          {activeTab === "dashboard" && (
+            <>
+              {/* Premium Status Banner */}
+              {isPremium ? (
+                <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 shadow-lg shadow-amber-100/50 rounded-2xl p-5 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                    <Star className="w-6 h-6 text-amber-500" fill="currentColor" />
+                  </div>
+                  <div>
+                    <p className="font-black text-amber-900 text-base">Compte Premium actif ✓</p>
+                    <p className="text-amber-700 text-sm mt-0.5">Toutes les fonctionnalités sont déverrouillées</p>
+                  </div>
+                  <div className="ml-auto text-right shrink-0">
+                    <p className="text-xs font-bold text-amber-600 uppercase tracking-widest">Économie réalisée</p>
+                    <p className="text-2xl font-black text-amber-900">10 000 €</p>
+                    <p className="text-[10px] text-amber-600">de frais d'agence évités</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gradient-to-r from-slate-50 to-blue-50/50 border border-slate-200 shadow-lg shadow-slate-100/50 rounded-2xl p-5 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                    <Zap className="w-6 h-6 text-slate-400" />
+                  </div>
+                  <div>
+                    <p className="font-black text-slate-900 text-base">Compte Gratuit</p>
+                    <p className="text-slate-500 text-sm mt-0.5">
+                      Publication gratuite · Outils premium disponibles à 19€
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => openPaywall("Jumo Premium")}
+                    className="ml-auto shrink-0 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-amber-200 active:scale-[.98]"
+                  >
+                    Passer à Premium — 19€
+                  </button>
+                </div>
+              )}
+
+              {/* Analytics */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl p-6 flex items-center gap-5 transition hover:-translate-y-1">
+                  <div className="p-4 bg-blue-50 rounded-xl text-blue-600"><Eye className="w-6 h-6" /></div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Vues (7j)</p>
+                    <p className="text-3xl font-black text-slate-900">245</p>
+                  </div>
+                </div>
+                <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl p-6 flex items-center gap-5 transition hover:-translate-y-1">
+                  <div className="p-4 bg-pink-50 rounded-xl text-pink-600"><Heart className="w-6 h-6" /></div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Favoris</p>
+                    <p className="text-3xl font-black text-slate-900">18</p>
+                  </div>
+                </div>
+                <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl p-6 flex items-center gap-5 transition hover:-translate-y-1">
+                  <div className="p-4 bg-emerald-50 rounded-xl text-[#10B981]"><TrendingUp className="w-6 h-6" /></div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Valeur DVF</p>
+                    <p className="text-3xl font-black text-slate-900">340 000 €</p>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <button
-                onClick={() => { if (!isPremium) openPaywall("Boost de visibilité"); else setIsBoosted(true); }}
-                className="w-full py-3 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-xl text-sm transition-all active:scale-[.98]"
-              >
-                Activer le Boost
-              </button>
-            )}
-          </div>
 
-          {/* B — Premium Badge */}
-          <div className={`bg-white/80 backdrop-blur-xl border rounded-2xl p-6 shadow-lg transition-all ${
-            isPremium ? "border-[#1E3A8A]/30 shadow-blue-100/50" : "border-slate-200 shadow-slate-200/40"
-          }`}>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${isPremium ? "bg-blue-50" : "bg-slate-100"}`}>
-              <Star className={`w-5 h-5 ${isPremium ? "text-[#1E3A8A]" : "text-slate-400"}`} fill={isPremium ? "currentColor" : "none"} />
-            </div>
-            <h3 className="font-black text-slate-900 mb-1">Badge Premium</h3>
-            <p className="text-slate-500 text-sm mb-4 leading-relaxed">
-              {isPremium
-                ? "Badge ★ Premium affiché sur votre annonce — crédibilité maximale."
-                : "Affichez un badge Premium pour inspirer confiance aux acheteurs."}
-            </p>
-            {isPremium ? (
-              <div className="flex items-center gap-2 text-[#1E3A8A] font-bold text-sm">
-                <CheckCircle2 size={15} /> Badge actif sur votre annonce
-              </div>
-            ) : (
-              <button
-                onClick={() => openPaywall("Badge Premium")}
-                className="w-full py-3 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-xl text-sm transition-all active:scale-[.98]"
-              >
-                Activer le badge
-              </button>
-            )}
-          </div>
+              {/* Premium Features */}
+              <div>
+                <div className="mb-5">
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">Outils Premium</h2>
+                  <p className="text-slate-500 text-sm mt-1 font-medium">
+                    Sans commission · Paiement unique · Déblocage immédiat
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
-          {/* C — Instant Notary Pack */}
-          <div className={`bg-white/80 backdrop-blur-xl border rounded-2xl p-6 shadow-lg transition-all ${
-            isPremium ? "border-emerald-200 shadow-emerald-100/50" : "border-slate-200 shadow-slate-200/40"
-          }`}>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${isPremium ? "bg-emerald-50" : "bg-slate-100"}`}>
-              <FileText className={`w-5 h-5 ${isPremium ? "text-emerald-600" : "text-slate-400"}`} />
-            </div>
-            <h3 className="font-black text-slate-900 mb-1">Pack Notaire Instantané</h3>
-            <p className="text-slate-500 text-sm mb-4 leading-relaxed">
-              {isPremium
-                ? "Envoi automatique du dossier complet au notaire sous 24h."
-                : "Fast-track de votre dossier notarial complet sous 24h."}
-            </p>
-            {isPremium ? (
-              <button className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 active:scale-[.98]">
-                <FileText size={15} /> Générer le dossier
-              </button>
-            ) : (
-              <button
-                onClick={() => openPaywall("Pack Notaire Instantané")}
-                className="w-full py-3 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-xl text-sm transition-all active:scale-[.98]"
-              >
-                Débloquer
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Split Content: Offers & Legal */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-        {/* ── Offers (real data) ── */}
-        <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-xl shadow-slate-200/50 rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-slate-900">Offres d'Achat</h2>
-            {pendingOffers.length > 0 && (
-              <span className="text-xs font-bold px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full">
-                {pendingOffers.length} en attente
-              </span>
-            )}
-          </div>
-
-          {offers.length === 0 ? (
-            /* Empty state */
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
-                <MessageSquare className="w-5 h-5 text-slate-400" />
-              </div>
-              <p className="text-slate-500 text-sm font-medium">Aucune offre reçue</p>
-              <p className="text-slate-400 text-xs mt-1">Les offres des acheteurs apparaîtront ici</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Pending offers first */}
-              {pendingOffers.map(offer => (
-                <OfferCard key={offer.id} offer={offer} />
-              ))}
-              {/* Then resolved (collapsed visually) */}
-              {resolvedOffers.length > 0 && (
-                <>
-                  {pendingOffers.length > 0 && (
-                    <div className="flex items-center gap-2 pt-1">
-                      <div className="flex-1 h-px bg-slate-100" />
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        Traitées
-                      </span>
-                      <div className="flex-1 h-px bg-slate-100" />
+                  {/* A — Boost Listing */}
+                  <div className={`bg-white/80 backdrop-blur-xl border rounded-2xl p-6 shadow-lg transition-all ${
+                    isBoosted ? "border-amber-200 shadow-amber-100/50" : "border-slate-200 shadow-slate-200/40"
+                  }`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${isBoosted ? "bg-amber-100" : "bg-slate-100"}`}>
+                      <TrendingUp className={`w-5 h-5 ${isBoosted ? "text-amber-600" : "text-slate-400"}`} />
                     </div>
+                    <h3 className="font-black text-slate-900 mb-1">Boost de visibilité</h3>
+                    <p className="text-slate-500 text-sm mb-4 leading-relaxed">
+                      {isBoosted
+                        ? "Votre annonce est propulsée en tête des résultats pendant 30 jours."
+                        : "Propulsez votre annonce en haut de la carte et des résultats de recherche."}
+                    </p>
+                    {isBoosted ? (
+                      <div className="flex items-center gap-2 text-amber-600 font-bold text-sm">
+                        <Star size={15} fill="currentColor" /> Boost actif · 30 jours restants
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { if (!isPremium) openPaywall("Boost de visibilité"); else setIsBoosted(true); }}
+                        className="w-full py-3 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-xl text-sm transition-all active:scale-[.98]"
+                      >
+                        Activer le Boost
+                      </button>
+                    )}
+                  </div>
+
+                  {/* B — Premium Badge */}
+                  <div className={`bg-white/80 backdrop-blur-xl border rounded-2xl p-6 shadow-lg transition-all ${
+                    isPremium ? "border-[#1E3A8A]/30 shadow-blue-100/50" : "border-slate-200 shadow-slate-200/40"
+                  }`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${isPremium ? "bg-blue-50" : "bg-slate-100"}`}>
+                      <Star className={`w-5 h-5 ${isPremium ? "text-[#1E3A8A]" : "text-slate-400"}`} fill={isPremium ? "currentColor" : "none"} />
+                    </div>
+                    <h3 className="font-black text-slate-900 mb-1">Badge Premium</h3>
+                    <p className="text-slate-500 text-sm mb-4 leading-relaxed">
+                      {isPremium
+                        ? "Badge ★ Premium affiché sur votre annonce — crédibilité maximale."
+                        : "Affichez un badge Premium pour inspirer confiance aux acheteurs."}
+                    </p>
+                    {isPremium ? (
+                      <div className="flex items-center gap-2 text-[#1E3A8A] font-bold text-sm">
+                        <CheckCircle2 size={15} /> Badge actif sur votre annonce
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => openPaywall("Badge Premium")}
+                        className="w-full py-3 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-xl text-sm transition-all active:scale-[.98]"
+                      >
+                        Activer le badge
+                      </button>
+                    )}
+                  </div>
+
+                  {/* C — Instant Notary Pack */}
+                  <div className={`bg-white/80 backdrop-blur-xl border rounded-2xl p-6 shadow-lg transition-all ${
+                    isPremium ? "border-emerald-200 shadow-emerald-100/50" : "border-slate-200 shadow-slate-200/40"
+                  }`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${isPremium ? "bg-emerald-50" : "bg-slate-100"}`}>
+                      <FileText className={`w-5 h-5 ${isPremium ? "text-emerald-600" : "text-slate-400"}`} />
+                    </div>
+                    <h3 className="font-black text-slate-900 mb-1">Pack Notaire Instantané</h3>
+                    <p className="text-slate-500 text-sm mb-4 leading-relaxed">
+                      {isPremium
+                        ? "Envoi automatique du dossier complet au notaire sous 24h."
+                        : "Fast-track de votre dossier notarial complet sous 24h."}
+                    </p>
+                    {isPremium ? (
+                      <button className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 active:scale-[.98]">
+                        <FileText size={15} /> Générer le dossier
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => openPaywall("Pack Notaire Instantané")}
+                        className="w-full py-3 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-xl text-sm transition-all active:scale-[.98]"
+                      >
+                        Débloquer
+                      </button>
+                    )}
+                  </div>
+
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ══════════════ ANNONCE TAB ══════════════ */}
+          {activeTab === "annonce" && (
+            <div>
+              <div className="mb-5">
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Publier une annonce</h2>
+                <p className="text-slate-500 text-sm mt-1 font-medium">
+                  FairScore DVF généré automatiquement · Visible immédiatement sur la carte
+                </p>
+              </div>
+              <div className="max-w-2xl">
+                <PropertyForm />
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════ DOSSIER TAB ══════════════ */}
+          {activeTab === "dossier" && <DossierJuridique />}
+
+          {/* ══════════════ OFFRES TAB ══════════════ */}
+          {activeTab === "offres" && (
+            <div className="space-y-6">
+              <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-xl shadow-slate-200/50 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-slate-900">Offres d'Achat</h2>
+                  {pendingOffers.length > 0 && (
+                    <span className="text-xs font-bold px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full">
+                      {pendingOffers.length} en attente
+                    </span>
                   )}
-                  {resolvedOffers.map(offer => (
-                    <OfferCard key={offer.id} offer={offer} />
-                  ))}
-                </>
+                </div>
+
+                {offers.length === 0 ? (
+                  <div className="text-center text-slate-400 py-10 font-medium">
+                    Aucune offre pour le moment.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingOffers.map(offer => (
+                      <OfferCard key={offer.id} offer={offer} />
+                    ))}
+                    {resolvedOffers.length > 0 && (
+                      <>
+                        {pendingOffers.length > 0 && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <div className="flex-1 h-px bg-slate-100" />
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                              Traitées
+                            </span>
+                            <div className="flex-1 h-px bg-slate-100" />
+                          </div>
+                        )}
+                        {resolvedOffers.map(offer => (
+                          <OfferCard key={offer.id} offer={offer} />
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {offers.length > 0 && (
+                <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl p-6">
+                  <div className="flex items-center gap-3 mb-1">
+                    <Calendar className="w-5 h-5 text-blue-600" />
+                    <h2 className="text-lg font-bold text-slate-900">Activité récente</h2>
+                  </div>
+                  <p className="text-slate-400 text-xs ml-8 mb-0">
+                    {offers.length} offre{offers.length > 1 ? "s" : ""} reçue{offers.length > 1 ? "s" : ""} au total ·{" "}
+                    {pendingOffers.length} en attente de réponse
+                  </p>
+                </div>
               )}
             </div>
           )}
-        </div>
 
-        <DossierJuridique />
-      </div>
+          {/* Paywall — always present, conditionally visible */}
+          <PaywallModal
+            isOpen={showPaywall}
+            onClose={() => setShowPaywall(false)}
+            featureName={paywallFeature}
+            onUnlock={handleUnlock}
+          />
 
-      {/* ── Visit requests summary ── */}
-      {offers.length > 0 && (
-        <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-1">
-            <Calendar className="w-5 h-5 text-blue-600" />
-            <h2 className="text-lg font-bold text-slate-900">Activité récente</h2>
-          </div>
-          <p className="text-slate-400 text-xs ml-8 mb-0">
-            {offers.length} offre{offers.length > 1 ? "s" : ""} reçue{offers.length > 1 ? "s" : ""} au total ·{" "}
-            {pendingOffers.length} en attente de réponse
-          </p>
         </div>
-      )}
-
-      {/* Publish a new listing */}
-      <div>
-        <div className="mb-5">
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Publier une annonce</h2>
-          <p className="text-slate-500 text-sm mt-1 font-medium">
-            FairScore DVF généré automatiquement · Visible immédiatement sur la carte
-          </p>
-        </div>
-        <div className="max-w-2xl">
-          <PropertyForm />
-        </div>
-      </div>
-
-      {/* Paywall */}
-      <PaywallModal
-        isOpen={showPaywall}
-        onClose={() => setShowPaywall(false)}
-        featureName={paywallFeature}
-        onUnlock={handleUnlock}
-      />
+      </main>
     </div>
   );
 }

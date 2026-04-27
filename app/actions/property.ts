@@ -66,6 +66,13 @@ export async function createProperty(
   const heatingType    = String(formData.get("heatingType")    ?? "").trim();
   const renovationYear = Number(formData.get("renovationYear") ?? 0);
 
+  /* Parse Cloudinary image URLs (JSON array of secure_urls) */
+  let images: string[] = [];
+  try {
+    const raw = formData.get("images");
+    if (raw) images = JSON.parse(String(raw)) as string[];
+  } catch { images = []; }
+
   /* Validate */
   if (title.length < 5)              return { success: false, error: "Le titre doit comporter au moins 5 caractères." };
   if (!VALID_TYPES.includes(type))   return { success: false, error: "Type de bien invalide." };
@@ -183,6 +190,7 @@ export async function createProperty(
           longitude:     lng,
           fairScore,
           cityAvgPerSqm: avgPerSqm,
+          images,
           status:        "AVAILABLE",
           sellerId:      seller.id,
         },
