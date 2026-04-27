@@ -172,8 +172,13 @@ const STYLE_TAG = `
 .jumo-nav-links { display: flex; align-items: center; gap: 4px; }
 
 @media (max-width: 767px) {
-  /* NavBar */
-  .jumo-nav          { padding: 12px 16px !important; }
+  /* NavBar — mobile: solid opaque background fixes mix-blend-mode: screen on the logo */
+  .jumo-nav {
+    padding: 10px 16px !important;
+    background: #060B14 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
   .jumo-nav-link     { padding: 6px 10px !important; font-size: 11px !important; }
   .jumo-nav-links    { display: none !important; }
 
@@ -322,19 +327,23 @@ function NavBar({ currentView, setCurrentView, sessionUser, onOpenAuth }: NavBar
   return (
     <nav className="jumo-nav" style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "18px 32px",
+      width: "100%", padding: "12px 24px",
       borderBottom: "1px solid var(--c-border)",
       backdropFilter: "blur(24px) saturate(1.5)",
       WebkitBackdropFilter: "blur(24px) saturate(1.5)",
       background: "rgba(6,11,20,0.75)",
       position: "sticky", top: 0, zIndex: 100,
+      boxSizing: "border-box",
     }}>
-      <div onClick={() => setCurrentView("landing")} style={{ cursor: "pointer", display: "flex", alignItems: "center" }}>
+      <div
+        onClick={() => setCurrentView("landing")}
+        style={{ cursor: "pointer", display: "flex", alignItems: "center", background: "transparent", padding: 0, WebkitTapHighlightColor: "transparent" }}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/logo.png"
           alt="Jumo-Immo"
-          style={{ height: 36, width: "auto", display: "block", mixBlendMode: "screen" }}
+          style={{ height: 32, width: "auto", display: "block", objectFit: "contain", mixBlendMode: "screen" }}
         />
       </div>
 
@@ -354,7 +363,7 @@ function NavBar({ currentView, setCurrentView, sessionUser, onOpenAuth }: NavBar
         </div>
 
         {/* ── Auth zone — always visible, flex-shrink: 0 prevents squish ── */}
-        <div style={{ flexShrink: 0 }}>
+        <div style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
           {sessionUser ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <a
