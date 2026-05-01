@@ -46,6 +46,8 @@ export default async function AnnoncePage({ params }: PageProps) {
       priceDropDate={priceDropDate}
       sellerName={property.seller.name}
       images={property.images}
+      heatingType={property.heatingType}
+      insulationLevel={property.insulationLevel}
     />
   );
 }

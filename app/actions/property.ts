@@ -62,9 +62,16 @@ export async function createProperty(
   const surface        = Number(formData.get("surface"));
   const rooms          = Number(formData.get("rooms"));
   const dpe            = String(formData.get("dpe")            ?? "").trim().toUpperCase();
-  const insulation     = String(formData.get("insulation")     ?? "").trim();
-  const heatingType    = String(formData.get("heatingType")    ?? "").trim();
-  const renovationYear = Number(formData.get("renovationYear") ?? 0);
+  const insulation      = String(formData.get("insulation")      ?? "").trim();
+  const heatingType     = String(formData.get("heatingType")     ?? "").trim();
+  const renovationYear  = Number(formData.get("renovationYear")  ?? 0);
+  const bedrooms        = formData.get("bedrooms")        ? Number(formData.get("bedrooms"))        : null;
+  const bathrooms       = formData.get("bathrooms")        ? Number(formData.get("bathrooms"))       : null;
+  const constructionYear = formData.get("constructionYear") ? Number(formData.get("constructionYear")) : null;
+  const hasBalcony      = formData.get("hasBalcony")  === "true";
+  const hasParking      = formData.get("hasParking")  === "true";
+  const hasElevator     = formData.get("hasElevator") === "true";
+  const hasCellar       = formData.get("hasCellar")   === "true";
 
   /* Parse Cloudinary image URLs (JSON array of secure_urls) */
   let images: string[] = [];
@@ -81,27 +88,6 @@ export async function createProperty(
   if (!surface || surface < 5)       return { success: false, error: "La surface doit être supérieure à 5 m²." };
   if (rooms < 0 || rooms > 20)       return { success: false, error: "Nombre de pièces invalide." };
   if (!VALID_DPE.includes(dpe))      return { success: false, error: "Classe DPE invalide." };
-
-  /* Validate required documents — server-side gate (mirrors client-side check) */
-  const requiredDocKeys = type === "Appartement"
-    ? ["TITRE_PROPRIETE", "DPE_DOC", "AMIANTE", "PLOMB", "TERMITES", "MESURAGE_CARREZ"]
-    : ["TITRE_PROPRIETE", "DPE_DOC", "AMIANTE", "PLOMB", "TERMITES"];
-
-  const docLabels: Record<string, string> = {
-    TITRE_PROPRIETE: "Titre de propriété",
-    DPE_DOC:         "Rapport DPE",
-    AMIANTE:         "Diagnostic amiante",
-    PLOMB:           "Diagnostic plomb",
-    TERMITES:        "État termites",
-    MESURAGE_CARREZ: "Mesurage Loi Carrez",
-  };
-
-  for (const key of requiredDocKeys) {
-    const file = formData.get(`doc_${key}`) as File | null;
-    if (!file || file.size === 0) {
-      return { success: false, error: `Document obligatoire manquant côté serveur : ${docLabels[key] ?? key}.` };
-    }
-  }
 
   /* Resolve city → coords + DVF average */
   const normalised = city
@@ -181,18 +167,28 @@ export async function createProperty(
         data: {
           title,
           description,
-          price:         Math.round(price),
-          surface:       Math.round(surface),
-          rooms:         Math.round(rooms),
-          dpe:           dpe as Dpe,
+          price:           Math.round(price),
+          surface:         Math.round(surface),
+          rooms:           Math.round(rooms),
+          dpe:             dpe as Dpe,
           city,
-          latitude:      lat,
-          longitude:     lng,
+          latitude:        lat,
+          longitude:       lng,
           fairScore,
-          cityAvgPerSqm: avgPerSqm,
-          images:        images || [],
-          status:        "AVAILABLE",
-          sellerId:      seller.id,
+          cityAvgPerSqm:   avgPerSqm,
+          images:          images || [],
+          status:          "AVAILABLE",
+          sellerId:        seller.id,
+          // optional rich fields — saved only when provided
+          ...(bedrooms         != null ? { bedrooms         } : {}),
+          ...(bathrooms        != null ? { bathrooms        } : {}),
+          ...(constructionYear != null ? { constructionYear } : {}),
+          ...(heatingType  ? { heatingType                } : {}),
+          ...(insulation   ? { insulationLevel: insulation } : {}),
+          hasBalcony,
+          hasParking,
+          hasElevator,
+          hasCellar,
         },
         select: { id: true },
       });

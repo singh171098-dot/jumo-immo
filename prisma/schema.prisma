@@ -92,6 +92,17 @@ model Property {
   rooms         Int            // Nombre de pièces
   bedrooms      Int?           // Nombre de chambres (optionnel)
   bathrooms     Int?           // Nombre de salles de bain (optionnel)
+  constructionYear Int?         // Année de construction
+
+  heatingType     String?      // "Gaz", "Électrique", "Pompe à chaleur", "Fioul", "Bois", "Autre"
+  insulationLevel String?      // "Faible", "Moyenne", "Bonne"
+
+  hasBalcony    Boolean        @default(false)
+  hasTerrace    Boolean        @default(false)
+  hasParking    Boolean        @default(false)
+  hasElevator   Boolean        @default(false)
+  hasCellar     Boolean        @default(false)
+
   dpe           Dpe
   energyAuditCost       Int?           // Coût estimé des travaux pour sortir de passoire thermique (F/G)
   latitude      Float

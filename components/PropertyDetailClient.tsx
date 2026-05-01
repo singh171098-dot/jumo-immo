@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { formatPrice } from "../lib/utils/formatters";
 import EnergyUpgradeCalc from "./EnergyUpgradeCalc";
+import DpeRenovationSimulator from "./DpeRenovationSimulator";
 import PaperworkWizard from "./PaperworkWizard";
 import ChatPanel from "./ChatPanel";
 import VisitBooker from "./VisitBooker";
@@ -70,6 +71,8 @@ export interface PropertyDetailProps {
   priceDropDate: string;
   sellerName: string;
   images: string[];
+  heatingType?: string | null;
+  insulationLevel?: string | null;
 }
 
 /* ── Animation variants ───────────────────────────────────────────────────── */
@@ -304,6 +307,16 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
             {/* Energy Upgrade Calculator */}
             <motion.div variants={fadeUp}>
               <EnergyUpgradeCalc dpe={p.dpe} surface={p.surface} />
+            </motion.div>
+
+            {/* DPE Renovation Simulator — personalised if heatingType/insulationLevel available */}
+            <motion.div variants={fadeUp}>
+              <DpeRenovationSimulator
+                dpe={p.dpe}
+                surface={p.surface}
+                heatingType={p.heatingType}
+                insulationLevel={p.insulationLevel}
+              />
             </motion.div>
 
             {/* ── Negotiation Assistant ── */}

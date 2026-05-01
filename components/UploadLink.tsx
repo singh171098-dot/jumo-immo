@@ -84,9 +84,17 @@ export default function UploadLink({
         <span className={`text-[10px] font-bold uppercase tracking-widest leading-none ${p.label}`}>
           {label}
         </span>
-        {required && (
+        {required ? (
           <span className="text-[9px] font-bold px-1.5 py-px bg-red-50 text-red-500 border border-red-200 rounded-sm uppercase tracking-wide leading-none">
             Obligatoire
+          </span>
+        ) : (
+          <span className={`text-[9px] font-bold px-1.5 py-px rounded-sm uppercase tracking-wide leading-none ${
+            dark
+              ? "bg-white/[0.06] text-gray-500 border border-white/10"
+              : "bg-slate-50 text-slate-400 border border-slate-200"
+          }`}>
+            Optionnel (Requis plus tard)
           </span>
         )}
       </div>

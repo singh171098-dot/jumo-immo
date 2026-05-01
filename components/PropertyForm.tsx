@@ -73,6 +73,15 @@ export default function PropertyForm() {
   const [result,             setResult]             = useState<CreatePropertyResult | null>(null);
   const [docs,               setDocs]               = useState<Record<DocKey, File | null>>(EMPTY_DOCS);
   const [imageUrls,          setImageUrls]          = useState<string[]>([]);
+  const [amenities,          setAmenities]          = useState({
+    hasBalcony:  false,
+    hasParking:  false,
+    hasElevator: false,
+    hasCellar:   false,
+  });
+
+  const toggleAmenity = (key: keyof typeof amenities) =>
+    setAmenities(prev => ({ ...prev, [key]: !prev[key] }));
 
   const setDoc = (key: DocKey) => (file: File | null) =>
     setDocs(prev => ({ ...prev, [key]: file }));
@@ -81,16 +90,6 @@ export default function PropertyForm() {
     e.preventDefault();
 
     if (!selectedDpe) { setError("Veuillez sélectionner la classe DPE."); return; }
-
-    /* Validate required documents — block submission if any are missing */
-    const requiredKeys = selectedType === "Appartement" ? REQUIRED_APPT : REQUIRED_ALL;
-    const missingDocs  = requiredKeys.filter(k => !docs[k]);
-    if (missingDocs.length > 0) {
-      setError(
-        `Documents obligatoires manquants : ${missingDocs.map(k => DOC_LABELS[k]).join(", ")}.`
-      );
-      return;
-    }
 
     setLoading(true);
     setError(null);
@@ -101,6 +100,10 @@ export default function PropertyForm() {
     fd.set("insulation",  selectedInsulation);
     fd.set("heatingType", selectedHeating);
     fd.set("images",      JSON.stringify(imageUrls));
+    fd.set("hasBalcony",  String(amenities.hasBalcony));
+    fd.set("hasParking",  String(amenities.hasParking));
+    fd.set("hasElevator", String(amenities.hasElevator));
+    fd.set("hasCellar",   String(amenities.hasCellar));
 
     /* Append document files for server-side validation + storage */
     for (const [key, file] of Object.entries(docs) as [DocKey, File | null][]) {
@@ -166,9 +169,12 @@ export default function PropertyForm() {
                 setResult(null);
                 setSelectedDpe("");
                 setSelectedType("Appartement");
+                setSelectedInsulation("");
+                setSelectedHeating("");
                 setError(null);
                 setDocs(EMPTY_DOCS);
                 setImageUrls([]);
+                setAmenities({ hasBalcony: false, hasParking: false, hasElevator: false, hasCellar: false });
               }}
               className="flex items-center justify-center gap-2 px-5 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all active:scale-[.98]"
             >
@@ -197,7 +203,7 @@ export default function PropertyForm() {
         </div>
         <div>
           <h2 className="text-lg font-black text-slate-900 tracking-tight">Publier une annonce</h2>
-          <p className="text-slate-400 text-xs mt-0.5 font-medium">Documents requis · DVF automatique · 0% commission</p>
+          <p className="text-slate-400 text-xs mt-0.5 font-medium">Publiez en 60 secondes · DVF automatique · 0% commission</p>
         </div>
       </div>
 
@@ -371,23 +377,23 @@ export default function PropertyForm() {
           )}
         </div>
 
-        {/* ── Required documents (publication gate) ── */}
+        {/* ── Legal documents (optional at publication) ── */}
         <div className="border-t border-slate-100 pt-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                Documents obligatoires
+                Documents légaux
               </p>
               <p className="text-xs text-slate-400 mt-0.5">
-                Requis avant publication · Conformité loi ALUR
+                Optionnel maintenant · Requis lors de la vente
               </p>
             </div>
             <span className={`text-xs font-bold px-2.5 py-1 rounded-lg transition-colors ${
-              allDocsUploaded
+              uploadedCount > 0
                 ? "bg-emerald-100 text-emerald-700"
-                : "bg-orange-100 text-orange-700"
+                : "bg-slate-100 text-slate-500"
             }`}>
-              {uploadedCount} / {requiredKeys.length} téléversés
+              {uploadedCount} / {requiredKeys.length} ajoutés
             </span>
           </div>
 
@@ -398,7 +404,7 @@ export default function PropertyForm() {
                 role="seller"
                 docType={key}
                 label={DOC_LABELS[key]}
-                required
+                required={false}
                 value={docs[key]}
                 onChange={setDoc(key)}
               />
@@ -408,9 +414,45 @@ export default function PropertyForm() {
 
         {/* ── Seller improvement fields (optional) ── */}
         <div className="border-t border-slate-100 pt-6 space-y-5">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            Précision de l'estimation (optionnel)
-          </p>
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Optionnel (améliore l'estimation)
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Ces données enrichissent le FairScore™ et la fiche du bien
+            </p>
+          </div>
+
+          {/* Bedrooms + Bathrooms */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="bedrooms" className={LABEL}>Chambres</label>
+              <input
+                id="bedrooms" name="bedrooms" type="number"
+                min={0} max={20} step={1} placeholder="2"
+                className={INPUT} disabled={loading}
+              />
+            </div>
+            <div>
+              <label htmlFor="bathrooms" className={LABEL}>Salles de bain</label>
+              <input
+                id="bathrooms" name="bathrooms" type="number"
+                min={0} max={10} step={1} placeholder="1"
+                className={INPUT} disabled={loading}
+              />
+            </div>
+          </div>
+
+          {/* Construction year */}
+          <div>
+            <label htmlFor="constructionYear" className={LABEL}>Année de construction</label>
+            <input
+              id="constructionYear" name="constructionYear" type="number"
+              min={1800} max={new Date().getFullYear()} step={1}
+              placeholder="Ex : 1972"
+              className={INPUT} disabled={loading}
+            />
+          </div>
 
           {/* Insulation */}
           <div>
@@ -462,6 +504,38 @@ export default function PropertyForm() {
               className={INPUT} disabled={loading}
             />
           </div>
+
+          {/* Amenities */}
+          <div>
+            <p className={LABEL}>Équipements &amp; Commodités</p>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  { key: "hasBalcony",  label: "Balcon",     icon: "🏡" },
+                  { key: "hasParking",  label: "Parking",    icon: "🚗" },
+                  { key: "hasElevator", label: "Ascenseur",  icon: "🛗" },
+                  { key: "hasCellar",   label: "Cave",       icon: "📦" },
+                ] as const
+              ).map(({ key, label, icon }) => {
+                const active = amenities[key];
+                return (
+                  <button
+                    key={key} type="button" disabled={loading}
+                    onClick={() => toggleAmenity(key)}
+                    className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all duration-200 active:scale-[.97] text-left ${
+                      active
+                        ? "bg-[#1E3A8A] border-[#1E3A8A] text-white shadow-md shadow-blue-200"
+                        : "bg-white border-slate-200 text-slate-500 hover:border-[#1E3A8A]/40 hover:text-[#1E3A8A]"
+                    }`}
+                  >
+                    <span className="text-base leading-none">{icon}</span>
+                    <span className="text-sm font-bold">{label}</span>
+                    {active && <CheckCircle2 size={13} className="ml-auto shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Error */}
@@ -486,7 +560,7 @@ export default function PropertyForm() {
           )}
         </button>
         <p className="text-center text-xs text-slate-400 mt-3 font-medium">
-          0% de commission · Données DVF officielles · Documents vérifiés
+          0% de commission · Données DVF officielles · Documents optionnels
         </p>
       </div>
     </form>
