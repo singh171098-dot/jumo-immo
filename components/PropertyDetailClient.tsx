@@ -5,10 +5,12 @@ import Link from "next/link";
 import {
   ArrowLeft, MapPin, Maximize2, BedDouble, Bath,
   ChevronLeft, ChevronRight, Zap, Share2, Heart, Phone, FileText, Calendar,
+  ExternalLink,
 } from "lucide-react";
 import { formatPrice } from "../lib/utils/formatters";
 import EnergyUpgradeCalc from "./EnergyUpgradeCalc";
 import DpeRenovationSimulator from "./DpeRenovationSimulator";
+import MortgageSimulator from "./MortgageSimulator";
 import PaperworkWizard from "./PaperworkWizard";
 import ChatPanel from "./ChatPanel";
 import VisitBooker from "./VisitBooker";
@@ -73,6 +75,13 @@ export interface PropertyDetailProps {
   images: string[];
   heatingType?: string | null;
   insulationLevel?: string | null;
+  constructionYear?: number | null;
+  hasBalcony?: boolean;
+  hasParking?: boolean;
+  hasElevator?: boolean;
+  hasCellar?: boolean;
+  source?: string;
+  externalUrl?: string | null;
 }
 
 /* ── Animation variants ───────────────────────────────────────────────────── */
@@ -94,6 +103,9 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
   const [activePanel,    setActivePanel]    = useState<"chat" | "visit" | null>(null);
   const [suggestedPrice, setSuggestedPrice] = useState<number | undefined>(undefined);
   const wizardRef = useRef<HTMLDivElement>(null);
+
+  /* Partner listing flag — drives conditional UI */
+  const isPartner = !!p.source && p.source !== "JUMO";
 
   /* Derived metrics */
   const pricePerSqm  = Math.round(p.price / p.surface);
@@ -177,6 +189,11 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
               <Zap size={11} />
               DPE {p.dpe}
             </span>
+            {isPartner && (
+              <span className="flex items-center gap-1.5 bg-blue-500/20 border border-blue-400/30 backdrop-blur-sm text-blue-200 text-xs font-bold px-3 py-2 rounded-full">
+                Annonce Partenaire
+              </span>
+            )}
           </div>
         </div>
 
@@ -304,6 +321,86 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
               <p className="text-gray-300 leading-relaxed text-sm whitespace-pre-line">{p.description}</p>
             </motion.div>
 
+            {/* ── Détails & Caractéristiques ── */}
+            {(p.bedrooms != null || p.bathrooms != null || p.constructionYear != null ||
+              p.hasBalcony || p.hasParking || p.hasElevator || p.hasCellar) && (
+              <motion.div
+                variants={fadeUp}
+                className="rounded-2xl bg-white/[0.04] backdrop-blur-sm border border-white/10 p-6"
+              >
+                <h2 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-5">
+                  Détails &amp; Caractéristiques
+                </h2>
+
+                {/* Optional info fields */}
+                {(p.bedrooms != null || p.bathrooms != null || p.constructionYear != null) && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+                    {p.bedrooms != null && (
+                      <div className="flex items-center gap-2.5 bg-white/[0.03] border border-white/[0.06] rounded-xl px-3.5 py-3">
+                        <BedDouble size={14} className="text-gray-500 shrink-0" />
+                        <div>
+                          <p className="text-[10px] text-gray-600 uppercase tracking-wide">Chambres</p>
+                          <p className="text-sm font-bold text-white">{p.bedrooms}</p>
+                        </div>
+                      </div>
+                    )}
+                    {p.bathrooms != null && (
+                      <div className="flex items-center gap-2.5 bg-white/[0.03] border border-white/[0.06] rounded-xl px-3.5 py-3">
+                        <Bath size={14} className="text-gray-500 shrink-0" />
+                        <div>
+                          <p className="text-[10px] text-gray-600 uppercase tracking-wide">Salles de bain</p>
+                          <p className="text-sm font-bold text-white">{p.bathrooms}</p>
+                        </div>
+                      </div>
+                    )}
+                    {p.constructionYear != null && (
+                      <div className="flex items-center gap-2.5 bg-white/[0.03] border border-white/[0.06] rounded-xl px-3.5 py-3">
+                        <Calendar size={14} className="text-gray-500 shrink-0" />
+                        <div>
+                          <p className="text-[10px] text-gray-600 uppercase tracking-wide">Construit en</p>
+                          <p className="text-sm font-bold text-white">{p.constructionYear}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Amenity badges */}
+                {(p.hasBalcony || p.hasParking || p.hasElevator || p.hasCellar) && (
+                  <div>
+                    <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-2.5">Équipements</p>
+                    <div className="flex flex-wrap gap-2">
+                      {p.hasBalcony  && (
+                        <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full">
+                          🌿 Balcon
+                        </span>
+                      )}
+                      {p.hasParking  && (
+                        <span className="flex items-center gap-1.5 text-xs font-semibold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-full">
+                          🚗 Parking
+                        </span>
+                      )}
+                      {p.hasElevator && (
+                        <span className="flex items-center gap-1.5 text-xs font-semibold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-full">
+                          🛗 Ascenseur
+                        </span>
+                      )}
+                      {p.hasCellar   && (
+                        <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-300 bg-white/[0.06] border border-white/10 px-3 py-1.5 rounded-full">
+                          📦 Cave
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* ── Mortgage Simulator ── */}
+            <motion.div variants={fadeUp}>
+              <MortgageSimulator price={p.price} />
+            </motion.div>
+
             {/* Energy Upgrade Calculator */}
             <motion.div variants={fadeUp}>
               <EnergyUpgradeCalc dpe={p.dpe} surface={p.surface} />
@@ -414,27 +511,43 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
 
             {/* CTAs — desktop only (mobile uses fixed bottom bar) */}
             <div className="hidden lg:flex flex-col gap-3">
-              <button
-                onClick={() => setActivePanel("chat")}
-                className="w-full py-4 bg-[#2563EB] hover:bg-blue-500 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm"
-              >
-                <Phone size={17} />
-                Contacter le vendeur
-              </button>
-              <button
-                onClick={() => setActivePanel("visit")}
-                className="w-full py-4 bg-white/[0.06] hover:bg-white/10 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm border border-white/10"
-              >
-                <Calendar size={17} />
-                Réserver une visite
-              </button>
-              <button
-                onClick={() => wizardRef.current?.scrollIntoView({ behavior: "smooth" })}
-                className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm"
-              >
-                <FileText size={17} />
-                Faire une offre
-              </button>
+              {isPartner ? (
+                p.externalUrl && (
+                  <a
+                    href={p.externalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-4 bg-gradient-to-r from-[#1E3A8A] to-blue-600 hover:from-blue-800 hover:to-blue-500 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-900/30"
+                  >
+                    <ExternalLink size={17} />
+                    Voir l'annonce originale
+                  </a>
+                )
+              ) : (
+                <>
+                  <button
+                    onClick={() => setActivePanel("chat")}
+                    className="w-full py-4 bg-[#2563EB] hover:bg-blue-500 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Phone size={17} />
+                    Contacter le vendeur
+                  </button>
+                  <button
+                    onClick={() => setActivePanel("visit")}
+                    className="w-full py-4 bg-white/[0.06] hover:bg-white/10 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm border border-white/10"
+                  >
+                    <Calendar size={17} />
+                    Réserver une visite
+                  </button>
+                  <button
+                    onClick={() => wizardRef.current?.scrollIntoView({ behavior: "smooth" })}
+                    className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm"
+                  >
+                    <FileText size={17} />
+                    Faire une offre
+                  </button>
+                </>
+              )}
             </div>
 
           </motion.div>
@@ -445,70 +558,92 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
       <div ref={wizardRef} />
 
       {/* ════════════════════════════════════════
-          PAPERWORK WIZARD — full width
+          PAPERWORK WIZARD — native listings only
       ════════════════════════════════════════ */}
-      <motion.div
-        className="max-w-7xl mx-auto px-4 sm:px-6 pb-28 lg:pb-16"
-        initial={{ opacity: 0, y: 28 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-80px" }}
-        transition={{ duration: 0.55, ease: "easeOut" }}
-      >
-        <div className="mb-5">
-          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Guide d'acquisition</p>
-          <h2 className="text-xl font-black text-white tracking-tight">Démarches d'achat</h2>
-          <p className="text-gray-400 text-sm mt-0.5">Délais légaux, documents obligatoires et calcul prorata</p>
-        </div>
-        <div className="max-w-2xl">
-          <PaperworkWizard
-            askingPrice={p.price}
-            cityAvgPerSqm={p.cityAvgPerSqm}
-            surface={p.surface}
-            suggestedOfferPrice={suggestedPrice}
-          />
-        </div>
-      </motion.div>
+      {!isPartner && (
+        <motion.div
+          className="max-w-7xl mx-auto px-4 sm:px-6 pb-28 lg:pb-16"
+          initial={{ opacity: 0, y: 28 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.55, ease: "easeOut" }}
+        >
+          <div className="mb-5">
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Guide d'acquisition</p>
+            <h2 className="text-xl font-black text-white tracking-tight">Démarches d'achat</h2>
+            <p className="text-gray-400 text-sm mt-0.5">Délais légaux, documents obligatoires et calcul prorata</p>
+          </div>
+          <div className="max-w-2xl">
+            <PaperworkWizard
+              askingPrice={p.price}
+              cityAvgPerSqm={p.cityAvgPerSqm}
+              surface={p.surface}
+              suggestedOfferPrice={suggestedPrice}
+            />
+          </div>
+        </motion.div>
+      )}
 
       {/* ════════════════════════════════════════
           MOBILE FIXED BOTTOM BAR
       ════════════════════════════════════════ */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-gray-950/95 backdrop-blur-xl border-t border-white/10 px-4 py-3 flex gap-3">
-        <button
-          onClick={() => setActivePanel("chat")}
-          className="flex-1 py-3.5 bg-[#2563EB] hover:bg-blue-500 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
-        >
-          <Phone size={16} />
-          Contacter
-        </button>
-        <button
-          onClick={() => setActivePanel("visit")}
-          className="px-4 py-3.5 bg-white/[0.06] hover:bg-white/10 text-white rounded-xl transition-colors flex items-center justify-center border border-white/10"
-          aria-label="Réserver une visite"
-        >
-          <Calendar size={16} />
-        </button>
-        <button
-          onClick={() => wizardRef.current?.scrollIntoView({ behavior: "smooth" })}
-          className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
-        >
-          <FileText size={16} />
-          Faire une offre
-        </button>
-      </div>
+      {isPartner ? (
+        p.externalUrl && (
+          <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-gray-950/95 backdrop-blur-xl border-t border-white/10 px-4 py-3">
+            <a
+              href={p.externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex w-full py-3.5 bg-gradient-to-r from-[#1E3A8A] to-blue-600 hover:from-blue-800 hover:to-blue-500 text-white font-bold rounded-xl transition-all items-center justify-center gap-2 text-sm"
+            >
+              <ExternalLink size={16} />
+              Voir l'annonce originale
+            </a>
+          </div>
+        )
+      ) : (
+        <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-gray-950/95 backdrop-blur-xl border-t border-white/10 px-4 py-3 flex gap-3">
+          <button
+            onClick={() => setActivePanel("chat")}
+            className="flex-1 py-3.5 bg-[#2563EB] hover:bg-blue-500 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
+          >
+            <Phone size={16} />
+            Contacter
+          </button>
+          <button
+            onClick={() => setActivePanel("visit")}
+            className="px-4 py-3.5 bg-white/[0.06] hover:bg-white/10 text-white rounded-xl transition-colors flex items-center justify-center border border-white/10"
+            aria-label="Réserver une visite"
+          >
+            <Calendar size={16} />
+          </button>
+          <button
+            onClick={() => wizardRef.current?.scrollIntoView({ behavior: "smooth" })}
+            className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
+          >
+            <FileText size={16} />
+            Faire une offre
+          </button>
+        </div>
+      )}
 
-      <ChatPanel
-        propertyId={p.id}
-        sellerName={p.sellerName}
-        propertyTitle={p.title}
-        isOpen={activePanel === "chat"}
-        onClose={() => setActivePanel(null)}
-      />
-      <VisitBooker
-        propertyId={p.id}
-        propertyTitle={p.title}
-        isOpen={activePanel === "visit"}
-        onClose={() => setActivePanel(null)}
-      />
+      {!isPartner && (
+        <>
+          <ChatPanel
+            propertyId={p.id}
+            sellerName={p.sellerName}
+            propertyTitle={p.title}
+            isOpen={activePanel === "chat"}
+            onClose={() => setActivePanel(null)}
+          />
+          <VisitBooker
+            propertyId={p.id}
+            propertyTitle={p.title}
+            isOpen={activePanel === "visit"}
+            onClose={() => setActivePanel(null)}
+          />
+        </>
+      )}
 
     </main>
   );

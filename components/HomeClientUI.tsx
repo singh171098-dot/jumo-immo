@@ -360,6 +360,14 @@ function NavBar({ currentView, setCurrentView, sessionUser, onOpenAuth }: NavBar
               transition: "all 0.3s ease", letterSpacing: "0.02em",
             }}>{l.label}</button>
           ))}
+          <a href="/prix-immobilier" className="jumo-nav-link" style={{
+            padding: "8px 18px", borderRadius: 6, fontSize: 13, fontWeight: 500,
+            fontFamily: "var(--font-body)", background: "transparent",
+            color: "var(--c-text-muted)", transition: "all 0.3s ease",
+            letterSpacing: "0.02em", textDecoration: "none",
+          }}>
+            Prix au m²
+          </a>
         </div>
 
         {/* ── Auth zone — always visible, flex-shrink: 0 prevents squish ── */}

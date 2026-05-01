@@ -113,14 +113,19 @@ model Property {
   images        String[]       @default([]) // Cloudinary secure_url list (ordered, first = cover)
   isBoosted     Boolean        @default(false)
   status        PropertyStatus @default(AVAILABLE)
+
+  source        String         @default("JUMO")   // "JUMO" | "SELOGER" | "BIENICI" | etc.
+  externalUrl   String?
+  externalId    String?        @unique
+
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  // Foreign key
-  sellerId      String
+  // Foreign key — nullable so external (scraped) listings have no seller
+  sellerId      String?
 
   // Relations
-  seller        User       @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  seller        User?      @relation(fields: [sellerId], references: [id], onDelete: SetNull)
   offers        Offer[]
   documents     Document[]
   visits        Visit[]

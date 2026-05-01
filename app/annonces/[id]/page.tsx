@@ -44,10 +44,17 @@ export default async function AnnoncePage({ params }: PageProps) {
       fairScore={property.fairScore}
       cityAvgPerSqm={property.cityAvgPerSqm}
       priceDropDate={priceDropDate}
-      sellerName={property.seller.name}
+      sellerName={property.seller?.name ?? "Partenaire"}
       images={property.images}
       heatingType={property.heatingType}
       insulationLevel={property.insulationLevel}
+      constructionYear={property.constructionYear}
+      hasBalcony={property.hasBalcony}
+      hasParking={property.hasParking}
+      hasElevator={property.hasElevator}
+      hasCellar={property.hasCellar}
+      source={property.source}
+      externalUrl={property.externalUrl}
     />
   );
 }
