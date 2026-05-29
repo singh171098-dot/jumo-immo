@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { Dpe } from "@prisma/client";
 
@@ -74,8 +75,6 @@ export async function POST(req: Request) {
       const surface     = item.rawData?.surface?.main ?? 1;
       const rooms       = item.rawData?.nbroom ?? 0;
       const city        = item.location?.address?.city ?? "France";
-      const latitude    = item.location?.lat ?? 48.8566;
-      const longitude   = item.location?.lng ?? 2.3522;
       const images      = Array.isArray(item.gallery?.images)
         ? item.gallery.images.map((img: any) => img.url).filter(Boolean)
         : [];
@@ -90,11 +89,31 @@ export async function POST(req: Request) {
         continue;
       }
 
+      /* ── Geocode city via French government API ─────────────────────────── */
+      let latitude  = item.location?.lat ?? 48.8566;
+      let longitude = item.location?.lng ?? 2.3522;
+
+      try {
+        const cityQuery = encodeURIComponent(item.location?.address?.city || "Paris");
+        const geoRes    = await fetch(
+          `https://api-adresse.data.gouv.fr/search/?q=${cityQuery}&limit=1`
+        );
+        const geoData = await geoRes.json();
+        if (geoData.features?.[0]?.geometry?.coordinates) {
+          longitude = geoData.features[0].geometry.coordinates[0];
+          latitude  = geoData.features[0].geometry.coordinates[1];
+        }
+      } catch {
+        /* Geocoding failed — keep payload coords or Paris fallback */
+      }
+
       try {
         await prisma.property.upsert({
           where: { externalId },
           update: {
             price,
+            latitude,
+            longitude,
             ...(item.mainDescription?.description !== undefined ? { description } : {}),
             ...(item.gallery?.images              !== undefined ? { images       } : {}),
           },
@@ -124,6 +143,7 @@ export async function POST(req: Request) {
       }
     }
 
+    revalidatePath("/");
     return NextResponse.json({ success: true, upserted, skipped });
 
   } catch (error: any) {
