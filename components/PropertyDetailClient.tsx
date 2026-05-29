@@ -15,6 +15,7 @@ import PaperworkWizard from "./PaperworkWizard";
 import ChatPanel from "./ChatPanel";
 import VisitBooker from "./VisitBooker";
 import NegotiationAssistant from "./NegotiationAssistant";
+import LeadCaptureModal from "./LeadCaptureModal";
 
 /* ── Fallback gallery when no images uploaded ─────────────────────────────── */
 const FALLBACK_GALLERY = [
@@ -102,28 +103,46 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
   const [saved,        setSaved]        = useState(false);
   const [activePanel,    setActivePanel]    = useState<"chat" | "visit" | null>(null);
   const [suggestedPrice, setSuggestedPrice] = useState<number | undefined>(undefined);
+  const [showLeadModal,  setShowLeadModal]  = useState(false);
   const wizardRef = useRef<HTMLDivElement>(null);
 
   /* Partner listing flag — drives conditional UI */
   const isPartner = !!p.source && p.source !== "JUMO";
 
   /* Derived metrics */
-  const pricePerSqm  = Math.round(p.price / p.surface);
+  const pricePerSqm   = Math.round(p.price / p.surface);
   const agencySavings = Math.round(p.price * 0.05);
-  const diff = Math.round(((pricePerSqm - p.cityAvgPerSqm) / p.cityAvgPerSqm) * 100);
+  const hasDvfData    = p.cityAvgPerSqm > 0;
+  const hasFairScore  = p.fairScore > 0;
+  const diff = hasDvfData
+    ? Math.round(((pricePerSqm - p.cityAvgPerSqm) / p.cityAvgPerSqm) * 100)
+    : null;
   const priceDrop = p.hasOriginalPrice
     ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
     : 0;
 
-  const scoreLabel = p.fairScore >= 80 ? "Prix juste" : p.fairScore >= 60 ? "À négocier" : "Surévalué";
-  const scoreColor = p.fairScore >= 80 ? "text-emerald-400" : p.fairScore >= 60 ? "text-amber-400" : "text-red-400";
+  const scoreLabel = !hasFairScore ? "Non analysé"
+    : p.fairScore >= 80 ? "Prix juste"
+    : p.fairScore >= 60 ? "À négocier"
+    : "Surévalué";
+  const scoreColor = !hasFairScore ? "text-gray-500"
+    : p.fairScore >= 80 ? "text-emerald-400"
+    : p.fairScore >= 60 ? "text-amber-400"
+    : "text-red-400";
 
-  const verdictCopy =
-    diff > 10  ? `Prix ${diff}% au-dessus du marché DVF — marge de négociation possible.`
-    : diff >= 0 ? `Prix aligné avec le marché DVF local (+${diff}%). Bonne opportunité.`
-               : `Prix ${Math.abs(diff)}% sous le marché DVF — affaire à saisir rapidement.`;
-  const verdictBg   = diff > 10  ? "bg-red-500/10 border border-red-500/20"     : diff >= 0 ? "bg-blue-500/10 border border-blue-500/20"    : "bg-emerald-500/10 border border-emerald-500/20";
-  const verdictText = diff > 10  ? "text-red-300"                               : diff >= 0 ? "text-blue-300"                              : "text-emerald-300";
+  const verdictCopy = diff === null
+    ? "Données DVF non disponibles pour cette annonce partenaire."
+    : diff > 10  ? `Prix ${diff}% au-dessus du marché DVF — marge de négociation possible.`
+    : diff >= 0  ? `Prix aligné avec le marché DVF local (+${diff}%). Bonne opportunité.`
+                 : `Prix ${Math.abs(diff)}% sous le marché DVF — affaire à saisir rapidement.`;
+  const verdictBg = diff === null ? "bg-gray-500/10 border border-gray-500/20"
+    : diff > 10  ? "bg-red-500/10 border border-red-500/20"
+    : diff >= 0  ? "bg-blue-500/10 border border-blue-500/20"
+                 : "bg-emerald-500/10 border border-emerald-500/20";
+  const verdictText = diff === null ? "text-gray-400"
+    : diff > 10  ? "text-red-300"
+    : diff >= 0  ? "text-blue-300"
+                 : "text-emerald-300";
 
   const dpeBg = DPE_BG[p.dpe] ?? "bg-gray-500";
 
@@ -467,10 +486,17 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
                   <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Analyse DVF</p>
                   <p className="text-2xl font-black text-white">{scoreLabel}</p>
                   <p className={`text-xs font-semibold mt-0.5 ${scoreColor}`}>
-                    FairScore™ {p.fairScore} / 100
+                    {hasFairScore ? `FairScore™ ${p.fairScore} / 100` : "Annonce partenaire"}
                   </p>
                 </div>
-                <FairScoreGauge score={p.fairScore} />
+                {hasFairScore
+                  ? <FairScoreGauge score={p.fairScore} />
+                  : (
+                    <div className="w-24 h-24 rounded-full border-2 border-gray-700 flex items-center justify-center">
+                      <span className="text-gray-600 text-xs font-bold text-center leading-tight">N/A</span>
+                    </div>
+                  )
+                }
               </div>
 
               {/* DVF comparison rows */}
@@ -479,16 +505,20 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
                   <span className="text-gray-400">Prix demandé / m²</span>
                   <span className="font-bold text-white">{formatPrice(pricePerSqm)}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-400">Marché DVF — {p.city}</span>
-                  <span className="font-bold text-blue-400">{formatPrice(p.cityAvgPerSqm)} / m²</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-400">Écart au marché</span>
-                  <span className={`font-bold ${diff > 0 ? "text-red-400" : "text-emerald-400"}`}>
-                    {diff > 0 ? `+${diff}%` : `${diff}%`}
-                  </span>
-                </div>
+                {hasDvfData && (
+                  <>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-400">Marché DVF — {p.city}</span>
+                      <span className="font-bold text-blue-400">{formatPrice(p.cityAvgPerSqm)} / m²</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-400">Écart au marché</span>
+                      <span className={`font-bold ${diff! > 0 ? "text-red-400" : "text-emerald-400"}`}>
+                        {diff! > 0 ? `+${diff}%` : `${diff}%`}
+                      </span>
+                    </div>
+                  </>
+                )}
 
                 {/* Verdict */}
                 <div className={`rounded-xl px-3.5 py-3 text-xs font-medium leading-relaxed ${verdictBg} ${verdictText}`}>
@@ -513,15 +543,13 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
             <div className="hidden lg:flex flex-col gap-3">
               {isPartner ? (
                 p.externalUrl && (
-                  <a
-                    href={p.externalUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => setShowLeadModal(true)}
                     className="w-full py-4 bg-gradient-to-r from-[#1E3A8A] to-blue-600 hover:from-blue-800 hover:to-blue-500 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-900/30"
                   >
                     <ExternalLink size={17} />
                     Voir l'annonce originale
-                  </a>
+                  </button>
                 )
               ) : (
                 <>
@@ -590,15 +618,13 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
       {isPartner ? (
         p.externalUrl && (
           <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-gray-950/95 backdrop-blur-xl border-t border-white/10 px-4 py-3">
-            <a
-              href={p.externalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => setShowLeadModal(true)}
               className="flex w-full py-3.5 bg-gradient-to-r from-[#1E3A8A] to-blue-600 hover:from-blue-800 hover:to-blue-500 text-white font-bold rounded-xl transition-all items-center justify-center gap-2 text-sm"
             >
               <ExternalLink size={16} />
               Voir l'annonce originale
-            </a>
+            </button>
           </div>
         )
       ) : (
@@ -625,6 +651,17 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
             Faire une offre
           </button>
         </div>
+      )}
+
+      {/* Lead capture modal — partner listings only */}
+      {isPartner && p.externalUrl && (
+        <LeadCaptureModal
+          isOpen={showLeadModal}
+          onClose={() => setShowLeadModal(false)}
+          propertyId={p.id}
+          externalUrl={p.externalUrl}
+          propertyTitle={p.title}
+        />
       )}
 
       {!isPartner && (

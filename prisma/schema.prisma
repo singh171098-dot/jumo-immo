@@ -130,6 +130,7 @@ model Property {
   documents     Document[]
   visits        Visit[]
   messages      Message[]
+  leads         Lead[]
 
   @@index([sellerId])
   @@index([status])
@@ -205,4 +206,24 @@ model Message {
 
   @@index([propertyId])
   @@map("messages")
+}
+
+model Lead {
+  id          String   @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String
+  postalCode  String
+  rgpdConsent Boolean
+  createdAt   DateTime @default(now())
+
+  // Foreign key
+  propertyId  String
+
+  // Relations
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([email])
+  @@map("leads")
 }

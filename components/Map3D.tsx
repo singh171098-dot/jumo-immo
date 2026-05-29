@@ -46,11 +46,14 @@ interface MapListing {
   city: string;
   fairScore: number;
   cityAvgPerSqm: number;
+  image?: string;
 }
 
 /* ── Formatters ──────────────────────────────────────────────────────────── */
 const fmtShort = (p: number): string =>
-  p >= 1_000_000
+  !p
+    ? 'Prix sur demande'
+    : p >= 1_000_000
     ? `${(p / 1_000_000).toFixed(1).replace('.', ',')} M€`
     : `${Math.round(p / 1_000)} k€`;
 
@@ -81,11 +84,15 @@ function injectPopupStyles() {
   document.head.appendChild(s);
 }
 
-/* ── Popup card DOM content (unchanged) ─────────────────────────────────── */
+/* ── Popup card DOM content ───────────────────────────────────────────────── */
 function createPopupContent(listing: MapListing, onNavigate: () => void): HTMLElement {
   const isFair      = listing.fairScore >= 80;
-  const scoreColor  = listing.fairScore >= 80 ? '#10B981' : listing.fairScore >= 60 ? '#C8A55C' : '#EF4444';
-  const scoreLabel  = listing.fairScore >= 80 ? 'Prix juste' : listing.fairScore >= 60 ? 'À négocier' : 'Surévalué';
+  const scoreColor  = listing.fairScore > 0
+    ? (listing.fairScore >= 80 ? '#10B981' : listing.fairScore >= 60 ? '#C8A55C' : '#EF4444')
+    : '#6B7280';
+  const scoreLabel  = listing.fairScore > 0
+    ? (listing.fairScore >= 80 ? 'Prix juste' : listing.fairScore >= 60 ? 'À négocier' : 'Surévalué')
+    : 'Non analysé';
   const pricePerSqm = listing.price / listing.surface;
   const diff = listing.cityAvgPerSqm > 0
     ? Math.round(Math.abs((pricePerSqm - listing.cityAvgPerSqm) / listing.cityAvgPerSqm) * 100)
@@ -98,8 +105,30 @@ function createPopupContent(listing: MapListing, onNavigate: () => void): HTMLEl
     ? 'linear-gradient(135deg,#064E3B 0%,#0B1120 100%)'
     : 'linear-gradient(135deg,#1a2440 0%,#0B1120 100%)';
   const hero = document.createElement('div');
-  hero.style.cssText = `height:116px;background:${heroBg};display:flex;align-items:center;justify-content:center;font-size:44px;position:relative;`;
-  hero.textContent = listing.type === 'Maison' ? '⌂' : '⊞';
+
+  if (listing.image) {
+    hero.style.cssText = 'height:116px;position:relative;overflow:hidden;';
+    const img = document.createElement('img');
+    img.src = listing.image;
+    img.alt = '';
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+    img.onerror = () => {
+      img.remove();
+      hero.style.background = heroBg;
+      hero.style.display = 'flex';
+      hero.style.alignItems = 'center';
+      hero.style.justifyContent = 'center';
+      hero.style.fontSize = '44px';
+      hero.textContent = listing.type === 'Maison' ? '⌂' : '⊞';
+    };
+    hero.appendChild(img);
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:absolute;inset:0;background:linear-gradient(to bottom,transparent 40%,rgba(11,17,32,0.55) 100%);pointer-events:none;';
+    hero.appendChild(overlay);
+  } else {
+    hero.style.cssText = `height:116px;background:${heroBg};display:flex;align-items:center;justify-content:center;font-size:44px;position:relative;`;
+    hero.textContent = listing.type === 'Maison' ? '⌂' : '⊞';
+  }
 
   const dpe = document.createElement('span');
   dpe.style.cssText = `position:absolute;top:10px;right:10px;background:${DPE_BG[listing.dpe] ?? '#4A5568'};color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;letter-spacing:.04em;`;
@@ -169,6 +198,7 @@ interface MapPropertyInput {
   cityAvgPerSqm?: number;
   lat?: number | null;
   lng?: number | null;
+  images?: string[];
 }
 
 function buildGeoJson(properties: MapPropertyInput[]) {
@@ -199,6 +229,7 @@ function buildGeoJson(properties: MapPropertyInput[]) {
           city: p.city,
           fairScore,
           cityAvgPerSqm,
+          image: p.images?.[0] ?? "",
         },
       };
     }),
@@ -213,14 +244,18 @@ function createPremiumMarkerEl(
   dpe: string,
   onClick: (e: MouseEvent) => void,
 ): HTMLDivElement {
-  /* Background tint driven by DVF fair score */
-  const bg = fairScore >= 80
-    ? 'rgba(16,185,129,0.18)'    // emerald — great deal
+  /* Background tint: brand blue for unscored external listings, DVF colour for native */
+  const bg = fairScore <= 0
+    ? 'rgba(30,58,138,0.85)'     // brand blue  — external / unscored
+    : fairScore >= 80
+    ? 'rgba(16,185,129,0.18)'    // emerald     — great deal
     : fairScore >= 65
-    ? 'rgba(245,158,11,0.15)'    // amber   — at market
-    : 'rgba(8,13,28,0.90)';      // dark    — overpriced
+    ? 'rgba(245,158,11,0.15)'    // amber       — at market
+    : 'rgba(8,13,28,0.90)';      // dark        — overpriced
 
-  const borderColor = fairScore >= 80
+  const borderColor = fairScore <= 0
+    ? 'rgba(59,130,246,0.45)'
+    : fairScore >= 80
     ? 'rgba(16,185,129,0.42)'
     : fairScore >= 65
     ? 'rgba(245,158,11,0.32)'
@@ -238,6 +273,8 @@ function createPremiumMarkerEl(
 
   /* Pill — all visual styling + hover animation lives on this inner element */
   const pill = document.createElement('div');
+  pill.dataset.origBg     = bg;
+  pill.dataset.origBorder = borderColor;
   pill.style.cssText = [
     `background:${bg}`,
     'backdrop-filter:blur(12px)',
@@ -285,7 +322,12 @@ function createPremiumMarkerEl(
   });
   root.addEventListener('mouseleave', () => {
     pill.style.transform = 'scale(1) translateY(0)';
-    pill.style.boxShadow = '0 8px 24px rgba(0,0,0,0.35),0 0 0 1px rgba(255,255,255,0.08)';
+    /* Preserve active shadow if this pill is currently selected */
+    if (pill.dataset.active === 'true') {
+      pill.style.boxShadow = '0 12px 32px rgba(16,185,129,0.4),0 0 0 2px rgba(16,185,129,0.6)';
+    } else {
+      pill.style.boxShadow = '0 8px 24px rgba(0,0,0,0.35),0 0 0 1px rgba(255,255,255,0.08)';
+    }
   });
 
   root.addEventListener('click', onClick);
@@ -312,14 +354,16 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
   const routerRef = useRef(router);
   useEffect(() => { routerRef.current = router; }, [router]);
 
-  const mapContainer  = useRef<HTMLDivElement>(null);
-  const map           = useRef<mapboxgl.Map | null>(null);
-  const popupRef      = useRef<mapboxgl.Popup | null>(null);
-  const markersRef    = useRef<mapboxgl.Marker[]>([]);        // DOM marker pool
-  const syncMarkersRef = useRef<(() => void) | null>(null);   // callable from outside style.load
-  const styleReady    = useRef(false);
-  const pendingData   = useRef<ReturnType<typeof buildGeoJson> | null>(null);
-  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mapContainer       = useRef<HTMLDivElement>(null);
+  const map                = useRef<mapboxgl.Map | null>(null);
+  const popupRef           = useRef<mapboxgl.Popup | null>(null);
+  const markersRef         = useRef<mapboxgl.Marker[]>([]);        // DOM marker pool
+  const syncMarkersRef     = useRef<(() => void) | null>(null);    // callable from outside style.load
+  const styleReady         = useRef(false);
+  const pendingData        = useRef<ReturnType<typeof buildGeoJson> | null>(null);
+  const debounceTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activePropertyIdRef = useRef<string | null>(null);         // selected property id
+  const activeMarkerPillRef = useRef<HTMLDivElement | null>(null); // selected pill DOM element
 
   const [query,       setQuery]       = useState('');
   const [results,     setResults]     = useState<GeoFeature[]>([]);
@@ -371,8 +415,8 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: initialGeoJson as any,
         cluster: true,
-        clusterMaxZoom: 12,
-        clusterRadius: 50,
+        clusterMaxZoom: 11,
+        clusterRadius: 30,
         clusterProperties: {
           sum_fairScore: ['+', ['get', 'fairScore']],
           sum_price:     ['+', ['get', 'price']],
@@ -473,12 +517,28 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
       m.on('mouseenter', LAYER_CLS, () => { m.getCanvas().style.cursor = 'pointer'; });
       m.on('mouseleave', LAYER_CLS, () => { m.getCanvas().style.cursor = ''; });
 
+      /* Clicking empty map background clears active marker + popup */
+      m.on('click', () => {
+        if (activeMarkerPillRef.current) {
+          const prev = activeMarkerPillRef.current;
+          prev.dataset.active    = 'false';
+          prev.style.background  = prev.dataset.origBg     ?? '';
+          prev.style.borderColor = prev.dataset.origBorder ?? '';
+          prev.style.boxShadow   = '0 8px 24px rgba(0,0,0,0.35),0 0 0 1px rgba(255,255,255,0.08)';
+          activeMarkerPillRef.current  = null;
+          activePropertyIdRef.current  = null;
+        }
+        popupRef.current?.remove();
+      });
+
       /* ── Hybrid pattern: DOM markers for unclustered points ─────────── */
       /* Called on moveend + zoomend — no per-frame updates                */
       function syncDomMarkers() {
         /* 1. Clear previous markers — prevent memory leaks */
         markersRef.current.forEach(mk => mk.remove());
         markersRef.current = [];
+        /* Pill DOM ref is stale after clear — reset it; activePropertyIdRef stays */
+        activeMarkerPillRef.current = null;
 
         /* 2. Query unclustered features from source                       */
         /* querySourceFeatures returns only currently-loaded tiles         */
@@ -513,6 +573,7 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
             city:          props.city          as string,
             fairScore:     props.fairScore     as number,
             cityAvgPerSqm: props.cityAvgPerSqm as number,
+            image:         (props.image as string) || undefined,
           };
 
           /* 5. Create premium glassmorphism pill element */
@@ -522,6 +583,23 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
             listing.dpe,
             (e: MouseEvent) => {
               e.stopPropagation();
+
+              /* ── Active state: restore previous, activate current ── */
+              if (activeMarkerPillRef.current) {
+                const prev = activeMarkerPillRef.current;
+                prev.dataset.active    = 'false';
+                prev.style.background  = prev.dataset.origBg     ?? '';
+                prev.style.borderColor = prev.dataset.origBorder ?? '';
+                prev.style.boxShadow   = '0 8px 24px rgba(0,0,0,0.35),0 0 0 1px rgba(255,255,255,0.08)';
+              }
+              const pill = el.firstElementChild as HTMLDivElement;
+              pill.dataset.active    = 'true';
+              pill.style.background  = 'rgba(16,185,129,0.9)';
+              pill.style.borderColor = 'rgba(16,185,129,0.7)';
+              pill.style.boxShadow   = '0 12px 32px rgba(16,185,129,0.4),0 0 0 2px rgba(16,185,129,0.6)';
+              activeMarkerPillRef.current = pill;
+              activePropertyIdRef.current = id;
+
               const content = createPopupContent(listing, () => {
                 routerRef.current.push(`/annonces/${listing.id}`);
                 popupRef.current?.remove();
@@ -538,6 +616,16 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
                 .addTo(m);
             },
           );
+
+          /* Re-apply active style if this property was selected before re-sync */
+          if (id === activePropertyIdRef.current) {
+            const pill = el.firstElementChild as HTMLDivElement;
+            pill.dataset.active    = 'true';
+            pill.style.background  = 'rgba(16,185,129,0.9)';
+            pill.style.borderColor = 'rgba(16,185,129,0.7)';
+            pill.style.boxShadow   = '0 12px 32px rgba(16,185,129,0.4),0 0 0 2px rgba(16,185,129,0.6)';
+            activeMarkerPillRef.current = pill;
+          }
 
           /* 6. Add Mapbox marker (anchor bottom so pill floats above pin) */
           const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })

@@ -107,6 +107,8 @@ export async function POST(req: Request) {
         /* Geocoding failed — keep payload coords or Paris fallback */
       }
 
+      console.log("Saving coordinates:", { city, latitude, longitude });
+
       try {
         await prisma.property.upsert({
           where: { externalId },
@@ -133,7 +135,6 @@ export async function POST(req: Request) {
             source,
             externalUrl,
             externalId,
-            sellerId:      null,
           },
         });
         upserted++;
