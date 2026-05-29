@@ -34,10 +34,20 @@ export async function POST(req: Request) {
     }
 
     /* ── Fetch items from Apify dataset ───────────────────────────────────── */
+    console.log("Token exists:", !!process.env.APIFY_API_TOKEN);
+
+    if (!process.env.APIFY_API_TOKEN) {
+      console.error("Missing APIFY_API_TOKEN");
+      return NextResponse.json(
+        { success: false, error: "Missing APIFY_API_TOKEN" },
+        { status: 500 }
+      );
+    }
+
     let items: ApifyItem[];
     try {
       const res = await fetch(
-        `https://api.apify.com/v2/datasets/${datasetId}/items`
+        `https://api.apify.com/v2/datasets/${datasetId}/items?token=${process.env.APIFY_API_TOKEN}`
       );
       if (!res.ok) {
         const errorText = await res.text();
