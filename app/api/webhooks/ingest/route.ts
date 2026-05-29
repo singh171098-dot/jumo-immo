@@ -2,20 +2,9 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { Dpe } from "@prisma/client";
 
-/* ── Apify item shape (fields vary by scraper) ───────────────────────────── */
+/* ── Apify item shape (Lexis Solutions SeLoger scraper) ──────────────────── */
 interface ApifyItem {
-  id?:          string;
-  title?:       string;
-  description?: string;
-  price?:       number;
-  surface?:     number;
-  latitude?:    number;
-  longitude?:   number;
-  images?:      string[];
-  url?:         string;
-  source?:      string;
-  city?:        string;
-  [key: string]: unknown;
+  [key: string]: any;
 }
 
 /* ── POST /api/webhooks/ingest ───────────────────────────────────────────── */
@@ -61,39 +50,45 @@ export async function POST(req: NextRequest) {
   let skipped  = 0;
 
   for (const item of items) {
+    const externalId  = item.id;
+    const externalUrl = item.url ?? "";
+    const source      = item.brand ? String(item.brand).toUpperCase() : "SELOGER";
+    const title       = item.hardFacts?.title ?? "Annonce externe";
+    const description = item.mainDescription?.description ?? title;
+    const price       = item.rawData?.price ?? item.tracking?.price ?? 0;
+    const surface     = item.rawData?.surface?.main ?? 1;
+    const rooms       = item.rawData?.nbroom ?? 0;
+    const city        = item.location?.address?.city ?? "France";
+    const latitude    = item.location?.lat ?? 48.8566;
+    const longitude   = item.location?.lng ?? 2.3522;
+    const images      = Array.isArray(item.gallery?.images)
+      ? item.gallery.images.map((img: any) => img.url).filter(Boolean)
+      : [];
+
+    const VALID_DPE = ["A", "B", "C", "D", "E", "F", "G"];
+    const dpe = VALID_DPE.includes(item.energyClass) ? item.energyClass : "D";
+
     /* Skip if missing required fields */
-    if (!item.id || !item.price) {
+    if (!item.id || !price) {
       skipped++;
       continue;
     }
-
-    const externalId  = item.id;
-    const externalUrl = item.url         ?? "";
-    const source      = (typeof item.source === "string" && item.source) ? item.source : "SELOGER";
-    const title       = item.title       ?? "Annonce externe";
-    const description = item.description ?? title;
-    const price       = Math.round(item.price);
-    const surface     = typeof item.surface   === "number" ? Math.round(item.surface) : 1;
-    const latitude    = typeof item.latitude  === "number" ? item.latitude  : 48.8566;
-    const longitude   = typeof item.longitude === "number" ? item.longitude : 2.3522;
-    const city        = typeof item.city      === "string" ? item.city      : "France";
-    const images      = Array.isArray(item.images) ? (item.images as string[]) : [];
 
     try {
       await prisma.property.upsert({
         where: { externalId },
         update: {
           price,
-          ...(item.description !== undefined ? { description } : {}),
-          ...(item.images       !== undefined ? { images       } : {}),
+          ...(item.mainDescription?.description !== undefined ? { description } : {}),
+          ...(item.gallery?.images              !== undefined ? { images       } : {}),
         },
         create: {
           title,
           description,
           price,
           surface,
-          rooms:         0,
-          dpe:           "D" as Dpe,  // default — external listings rarely expose DPE
+          rooms,
+          dpe:           dpe as Dpe,
           latitude,
           longitude,
           city,
