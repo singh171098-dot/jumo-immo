@@ -427,7 +427,8 @@ interface HomeClientProps {
 export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientProps) {
   const router = useRouter();
   const [currentView, setCurrentView] = useState("landing");
-  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showAuthModal,      setShowAuthModal]      = useState(false);
+  const [pendingDestination, setPendingDestination] = useState<string | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [animatedCount, setAnimatedCount] = useState(0);
@@ -634,6 +635,121 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
                   </div>
                 ))}
               </div>
+
+              {/* ── Intent segmentation ──
+                  Only shown to unauthenticated visitors.
+                  Logged-in users already have access to their buyer/seller dashboards. */}
+              {!sessionUser && <div style={{ pointerEvents: "auto" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 16, height: 1, background: "var(--c-gold)", opacity: 0.5 }} />
+                  <span style={{
+                    fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase",
+                    color: "rgba(255,255,255,0.35)", fontFamily: "var(--font-body)", fontWeight: 600,
+                  }}>
+                    Quel est votre projet ?
+                  </span>
+                  <div style={{ width: 16, height: 1, background: "var(--c-gold)", opacity: 0.5 }} />
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {/* Acheter */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (sessionUser) {
+                        router.push("/espace-acheteur");
+                      } else {
+                        setPendingDestination("/espace-acheteur");
+                        setShowAuthModal(true);
+                      }
+                    }}
+                    style={{
+                      display: "flex", flexDirection: "column", gap: 6,
+                      padding: "14px 18px", borderRadius: 12,
+                      background: "rgba(37,99,235,0.10)",
+                      border: "1px solid rgba(37,99,235,0.30)",
+                      transition: "background 0.2s ease, border-color 0.2s ease",
+                      flex: "1 1 140px", cursor: "pointer", textAlign: "left",
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLButtonElement).style.background = "rgba(37,99,235,0.18)";
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(37,99,235,0.55)";
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLButtonElement).style.background = "rgba(37,99,235,0.10)";
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(37,99,235,0.30)";
+                    }}
+                  >
+                    <span style={{ fontSize: 18, lineHeight: 1 }}>🏠</span>
+                    <span style={{
+                      fontSize: 13, fontWeight: 800, color: "var(--c-text)",
+                      fontFamily: "var(--font-body)", letterSpacing: "-0.01em",
+                    }}>
+                      Acheter un bien
+                    </span>
+                    <span style={{
+                      fontSize: 10, color: "var(--c-text-muted)", fontFamily: "var(--font-body)",
+                      lineHeight: 1.4,
+                    }}>
+                      DVF · FairScore · 0% commission
+                    </span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, color: "var(--c-blue)",
+                      fontFamily: "var(--font-body)", marginTop: 2,
+                    }}>
+                      Accéder →
+                    </span>
+                  </button>
+
+                  {/* Vendre */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (sessionUser) {
+                        router.push("/espace-vendeur");
+                      } else {
+                        setPendingDestination("/espace-vendeur");
+                        setShowAuthModal(true);
+                      }
+                    }}
+                    style={{
+                      display: "flex", flexDirection: "column", gap: 6,
+                      padding: "14px 18px", borderRadius: 12,
+                      background: "var(--c-gold-dim)",
+                      border: "1px solid rgba(200,165,92,0.25)",
+                      transition: "background 0.2s ease, border-color 0.2s ease",
+                      flex: "1 1 140px", cursor: "pointer", textAlign: "left",
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLButtonElement).style.background = "rgba(200,165,92,0.18)";
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(200,165,92,0.45)";
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLButtonElement).style.background = "var(--c-gold-dim)";
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(200,165,92,0.25)";
+                    }}
+                  >
+                    <span style={{ fontSize: 18, lineHeight: 1 }}>💰</span>
+                    <span style={{
+                      fontSize: 13, fontWeight: 800, color: "var(--c-text)",
+                      fontFamily: "var(--font-body)", letterSpacing: "-0.01em",
+                    }}>
+                      Vendre mon bien
+                    </span>
+                    <span style={{
+                      fontSize: 10, color: "var(--c-text-muted)", fontFamily: "var(--font-body)",
+                      lineHeight: 1.4,
+                    }}>
+                      Sans agence · Dossier juridique inclus
+                    </span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, color: "var(--c-gold)",
+                      fontFamily: "var(--font-body)", marginTop: 2,
+                    }}>
+                      Publier →
+                    </span>
+                  </button>
+                </div>
+              </div>}
             </div>
 
             {/* RIGHT — Property preview cards */}
@@ -974,7 +1090,17 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
           <span style={{ margin: "0 12px", color: "var(--c-border)" }}>·</span>
           Sans commission
         </div>
-        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => { setShowAuthModal(false); setPendingDestination(null); }}
+          onSuccess={() => {
+            const dest = pendingDestination;
+            setShowAuthModal(false);
+            setPendingDestination(null);
+            if (dest) router.push(dest);
+            else router.refresh();
+          }}
+        />
       </div>
     );
   }
@@ -1063,7 +1189,17 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
             )}
           </div>
         </div>
-        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => { setShowAuthModal(false); setPendingDestination(null); }}
+          onSuccess={() => {
+            const dest = pendingDestination;
+            setShowAuthModal(false);
+            setPendingDestination(null);
+            if (dest) router.push(dest);
+            else router.refresh();
+          }}
+        />
       </div>
     );
   }
@@ -1137,7 +1273,17 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
             ))}
           </div>
         </div>
-        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => { setShowAuthModal(false); setPendingDestination(null); }}
+          onSuccess={() => {
+            const dest = pendingDestination;
+            setShowAuthModal(false);
+            setPendingDestination(null);
+            if (dest) router.push(dest);
+            else router.refresh();
+          }}
+        />
       </div>
     );
   }
@@ -1184,7 +1330,17 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
             </div>
           </div>
         </div>
-        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => { setShowAuthModal(false); setPendingDestination(null); }}
+          onSuccess={() => {
+            const dest = pendingDestination;
+            setShowAuthModal(false);
+            setPendingDestination(null);
+            if (dest) router.push(dest);
+            else router.refresh();
+          }}
+        />
       </div>
     );
   }
@@ -1235,7 +1391,17 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
             </div>
           </div>
         </div>
-        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => { setShowAuthModal(false); setPendingDestination(null); }}
+          onSuccess={() => {
+            const dest = pendingDestination;
+            setShowAuthModal(false);
+            setPendingDestination(null);
+            if (dest) router.push(dest);
+            else router.refresh();
+          }}
+        />
       </div>
     );
   }

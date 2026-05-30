@@ -8,14 +8,15 @@ import { X, Mail, Lock, User, ChevronRight, Home, ShoppingBag } from "lucide-rea
 import { registerUser } from "@/app/actions/auth";
 
 interface Props {
-  isOpen:  boolean;
-  onClose: () => void;
+  isOpen:    boolean;
+  onClose:   () => void;
+  onSuccess?: () => void;
 }
 
 const inputCls =
   "w-full bg-white/[0.04] border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/40 transition placeholder-gray-700";
 
-export default function AuthModal({ isOpen, onClose }: Props) {
+export default function AuthModal({ isOpen, onClose, onSuccess }: Props) {
   const router = useRouter();
   const [tab, setTab]         = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
@@ -57,7 +58,11 @@ export default function AuthModal({ isOpen, onClose }: Props) {
         setError("Email ou mot de passe incorrect.");
       } else {
         closeAndReset();
-        router.refresh();
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          router.refresh();
+        }
       }
     } catch {
       setError("Erreur de connexion. Réessayez.");
@@ -96,7 +101,11 @@ export default function AuthModal({ isOpen, onClose }: Props) {
         switchTab("login");
       } else {
         closeAndReset();
-        router.refresh();
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          router.refresh();
+        }
       }
     } catch {
       setError("Compte créé ! Connectez-vous maintenant.");

@@ -34,10 +34,19 @@ export default async function EspaceVendeurPage() {
     })),
   );
 
+  /* Real analytics aggregated from all seller properties */
+  const totalViews    = properties.reduce((sum, p) => sum + p.viewCount, 0);
+  const visitCount    = properties.reduce((sum, p) => sum + p.visits.length, 0);
+  const messageCount  = properties.reduce((sum, p) => sum + p.messages.length, 0);
+
   return (
     <EspaceVendeurClient
       sellerName={session.user.name ?? "Vendeur"}
+      sellerEmail={session.user.email ?? ""}
       offers={offers}
+      totalViews={totalViews}
+      visitCount={visitCount}
+      messageCount={messageCount}
     />
   );
 }

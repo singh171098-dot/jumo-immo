@@ -2,6 +2,7 @@ import {
   LayoutDashboard, Calendar, FileText, Clock, ShieldCheck, Home,
 } from "lucide-react";
 import Link from "next/link";
+import LogoutButton from "../../components/LogoutButton";
 
 const NAV = [
   { href: "/espace-acheteur",            icon: LayoutDashboard, label: "Tableau de bord", active: true  },
@@ -52,8 +53,8 @@ export default function EspaceAcheteurLayout({ children }: { children: React.Rea
           ))}
         </nav>
 
-        {/* Legal footer card */}
-        <div className="p-4 border-t border-white/[0.06]">
+        {/* Legal footer card + logout */}
+        <div className="p-4 border-t border-white/[0.06] space-y-3">
           <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3">
             <p className="text-[10px] text-emerald-400/70 font-bold uppercase tracking-widest">
               Protection légale
@@ -62,6 +63,7 @@ export default function EspaceAcheteurLayout({ children }: { children: React.Rea
               Droits garantis par la loi SRU et la loi ALUR
             </p>
           </div>
+          <LogoutButton className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all text-gray-500 hover:text-red-400 hover:bg-red-500/[0.08] border border-transparent" />
         </div>
       </aside>
 

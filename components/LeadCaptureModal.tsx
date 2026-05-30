@@ -6,6 +6,7 @@ import { X, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
 interface LeadCaptureModalProps {
   isOpen:      boolean;
   onClose:     () => void;
+  onSuccess?:  () => void;
   propertyId:  string;
   externalUrl: string;
   propertyTitle?: string;
@@ -24,7 +25,7 @@ const EMPTY: FormState = {
 };
 
 export default function LeadCaptureModal({
-  isOpen, onClose, propertyId, externalUrl, propertyTitle,
+  isOpen, onClose, onSuccess, propertyId, externalUrl, propertyTitle,
 }: LeadCaptureModalProps) {
   const [form,    setForm]    = useState<FormState>(EMPTY);
   const [loading, setLoading] = useState(false);
@@ -71,9 +72,9 @@ export default function LeadCaptureModal({
         return;
       }
 
-      /* Success — open external listing and close modal */
+      /* Success — unlock content, open external listing, close modal */
+      onSuccess?.();
       window.open(externalUrl, "_blank", "noopener,noreferrer");
-      onClose();
     } catch {
       setError("Erreur de connexion. Vérifiez votre réseau et réessayez.");
     } finally {

@@ -1,6 +1,7 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toggleFavorite } from "../app/actions/favorites";
 import Link from "next/link";
 import {
   ArrowLeft, MapPin, Maximize2, BedDouble, Bath,
@@ -83,6 +84,9 @@ export interface PropertyDetailProps {
   hasCellar?: boolean;
   source?: string;
   externalUrl?: string | null;
+  externalId?: string | null;
+  isSaved?: boolean;
+  isAuthenticated?: boolean;
 }
 
 /* ── Animation variants ───────────────────────────────────────────────────── */
@@ -100,14 +104,16 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
   const gallery = p.images.length > 0 ? p.images : FALLBACK_GALLERY;
 
   const [activeImg,    setActiveImg]    = useState(0);
-  const [saved,        setSaved]        = useState(false);
+  const [saved,        setSaved]        = useState(p.isSaved ?? false);
+  const [savePending,  startSaveTransition] = useTransition();
   const [activePanel,    setActivePanel]    = useState<"chat" | "visit" | null>(null);
   const [suggestedPrice, setSuggestedPrice] = useState<number | undefined>(undefined);
   const [showLeadModal,  setShowLeadModal]  = useState(false);
+  const [isUnlocked,     setIsUnlocked]     = useState(false);
   const wizardRef = useRef<HTMLDivElement>(null);
 
   /* Partner listing flag — drives conditional UI */
-  const isPartner = !!p.source && p.source !== "JUMO";
+  const isPartner = !!(p.externalId || p.externalUrl);
 
   /* Derived metrics */
   const pricePerSqm   = Math.round(p.price / p.surface);
@@ -173,13 +179,30 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
             key={activeImg}
             src={gallery[activeImg]}
             alt=""
-            className="absolute inset-0 w-full h-full object-cover"
+            className={[
+              "absolute inset-0 w-full h-full object-cover",
+              isPartner && !isUnlocked && activeImg > 0
+                ? "blur-xl opacity-40 pointer-events-none"
+                : "",
+            ].join(" ")}
             initial={{ opacity: 0, scale: 1.04 }}
-            animate={{ opacity: 1, scale: 1 }}
+            animate={{ opacity: isPartner && !isUnlocked && activeImg > 0 ? 0.4 : 1, scale: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.7 }}
           />
         </AnimatePresence>
+
+        {/* Lock overlay on blurred frames */}
+        {isPartner && !isUnlocked && activeImg > 0 && (
+          <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center gap-3 pointer-events-none">
+            <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-3xl">
+              🔒
+            </div>
+            <p className="text-white/80 text-sm font-semibold bg-black/40 backdrop-blur-sm px-4 py-1.5 rounded-full">
+              Photo verrouillée
+            </p>
+          </div>
+        )}
 
         {/* Gradient overlays */}
         <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/30 to-gray-950/10 pointer-events-none" />
@@ -196,8 +219,16 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
           </Link>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setSaved(s => !s)}
-              className={`p-2.5 rounded-full backdrop-blur-sm transition ${saved ? "bg-red-500/80 text-white" : "bg-black/30 text-white/70 hover:text-white"}`}
+              onClick={() => {
+                if (!p.isAuthenticated) return;
+                startSaveTransition(async () => {
+                  const result = await toggleFavorite(p.id);
+                  setSaved(result.saved);
+                });
+              }}
+              disabled={savePending}
+              title={p.isAuthenticated ? (saved ? "Retirer des favoris" : "Sauvegarder") : "Connectez-vous pour sauvegarder"}
+              className={`p-2.5 rounded-full backdrop-blur-sm transition disabled:opacity-60 ${saved ? "bg-red-500/80 text-white" : "bg-black/30 text-white/70 hover:text-white"}`}
             >
               <Heart size={16} fill={saved ? "currentColor" : "none"} />
             </button>
@@ -208,11 +239,9 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
               <Zap size={11} />
               DPE {p.dpe}
             </span>
-            {isPartner && (
-              <span className="flex items-center gap-1.5 bg-blue-500/20 border border-blue-400/30 backdrop-blur-sm text-blue-200 text-xs font-bold px-3 py-2 rounded-full">
-                Annonce Partenaire
-              </span>
-            )}
+            <span className="flex items-center gap-1.5 bg-blue-500/20 border border-blue-400/30 backdrop-blur-sm text-blue-200 text-xs font-bold px-3 py-2 rounded-full">
+              {isPartner ? "Annonce partenaire" : "Jumo Immo"}
+            </span>
           </div>
         </div>
 
@@ -226,15 +255,22 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
 
         {/* Gallery thumbnail strip */}
         <div className="absolute bottom-24 right-5 flex gap-1.5 z-10">
-          {gallery.map((src, i) => (
-            <button
-              key={i}
-              onClick={() => setActiveImg(i)}
-              className={`w-14 h-10 rounded-lg overflow-hidden border-2 transition ${i === activeImg ? "border-white" : "border-white/20 hover:border-white/50"}`}
-            >
-              <img src={src} alt="" className="w-full h-full object-cover" />
-            </button>
-          ))}
+          {gallery.map((src, i) => {
+            const thumbLocked = isPartner && !isUnlocked && i > 0;
+            return (
+              <button
+                key={i}
+                onClick={() => setActiveImg(i)}
+                className={`w-14 h-10 rounded-lg overflow-hidden border-2 transition ${i === activeImg ? "border-white" : "border-white/20 hover:border-white/50"} ${thumbLocked ? "cursor-default" : ""}`}
+              >
+                <img
+                  src={src}
+                  alt=""
+                  className={`w-full h-full object-cover${thumbLocked ? " blur-sm opacity-40" : ""}`}
+                />
+              </button>
+            );
+          })}
         </div>
 
         {/* Dot indicators */}
@@ -337,7 +373,24 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
               className="rounded-2xl bg-white/[0.04] backdrop-blur-sm border border-white/10 p-6"
             >
               <h2 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4">Description du bien</h2>
-              <p className="text-gray-300 leading-relaxed text-sm whitespace-pre-line">{p.description}</p>
+              {isPartner && !isUnlocked ? (
+                <>
+                  <div className="relative">
+                    <p className="text-gray-300 leading-relaxed text-sm whitespace-pre-line">
+                      {p.description.slice(0, 150)}…
+                    </p>
+                    <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-gray-900/80 to-transparent pointer-events-none" />
+                  </div>
+                  <button
+                    onClick={() => setShowLeadModal(true)}
+                    className="mt-4 w-full py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors text-sm"
+                  >
+                    🔒 Débloquer la description et les photos
+                  </button>
+                </>
+              ) : (
+                <p className="text-gray-300 leading-relaxed text-sm whitespace-pre-line">{p.description}</p>
+              )}
             </motion.div>
 
             {/* ── Détails & Caractéristiques ── */}
@@ -436,18 +489,20 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
             </motion.div>
 
             {/* ── Negotiation Assistant ── */}
-            <motion.div variants={fadeUp}>
-              <NegotiationAssistant
-                askingPrice={p.price}
-                surface={p.surface}
-                cityAvgPerSqm={p.cityAvgPerSqm}
-                city={p.city}
-                onPropose={(price) => {
-                  setSuggestedPrice(price);
-                  wizardRef.current?.scrollIntoView({ behavior: "smooth" });
-                }}
-              />
-            </motion.div>
+            {!isPartner && (
+              <motion.div variants={fadeUp}>
+                <NegotiationAssistant
+                  askingPrice={p.price}
+                  surface={p.surface}
+                  cityAvgPerSqm={p.cityAvgPerSqm}
+                  city={p.city}
+                  onPropose={(price) => {
+                    setSuggestedPrice(price);
+                    wizardRef.current?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                />
+              </motion.div>
+            )}
 
             {/* Seller mention */}
             <motion.div
@@ -486,7 +541,7 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
                   <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Analyse DVF</p>
                   <p className="text-2xl font-black text-white">{scoreLabel}</p>
                   <p className={`text-xs font-semibold mt-0.5 ${scoreColor}`}>
-                    {hasFairScore ? `FairScore™ ${p.fairScore} / 100` : "Annonce partenaire"}
+                    {hasFairScore ? `FairScore™ ${p.fairScore} / 100` : isPartner ? "Annonce partenaire" : "Score non calculé"}
                   </p>
                 </div>
                 {hasFairScore
@@ -658,6 +713,7 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
         <LeadCaptureModal
           isOpen={showLeadModal}
           onClose={() => setShowLeadModal(false)}
+          onSuccess={() => { setIsUnlocked(true); setShowLeadModal(false); }}
           propertyId={p.id}
           externalUrl={p.externalUrl}
           propertyTitle={p.title}

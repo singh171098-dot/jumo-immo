@@ -17,6 +17,31 @@ enum Role {
   ADMIN
 }
 
+enum Gender {
+  MONSIEUR
+  MADAME
+}
+
+enum MaritalStatus {
+  CELIBATAIRE
+  MARIE
+  PACSE
+  DIVORCE
+  VEUF
+}
+
+enum MatrimonialRegime {
+  COMMUNAUTE_REDUITE_ACQUETS
+  SEPARATION_BIENS
+  COMMUNAUTE_UNIVERSELLE
+  PARTICIPATION_ACQUETS
+}
+
+enum PersonType {
+  PARTICULIER
+  SOCIETE
+}
+
 enum Dpe {
   A
   B
@@ -77,7 +102,12 @@ model User {
   updatedAt      DateTime   @updatedAt
 
   // Relations
-  properties     Property[]
+  properties      Property[]
+  savedProperties Property[]    @relation("UserSavedProperties")
+  buyerProfile    BuyerProfile?
+  buyerCriteria   BuyerCriteria?
+  sellerProfile   SellerProfile?
+  civilStatus     CivilStatus?
 
   @@map("users")
 }
@@ -114,6 +144,15 @@ model Property {
   isBoosted     Boolean        @default(false)
   status        PropertyStatus @default(AVAILABLE)
 
+  // Legal identification fields (added for notarial file completion)
+  cadastralParcel       String?  // e.g. "AB 0042"
+  fiscalInvariantNumber String?  // Invariant fiscal — identifiant officiel du bien
+  lotNumbers            String?  // Numéros de lots (copropriété)
+  tantiemes             Float?   // Tantièmes (parts de copropriété)
+  isCopropriete         Boolean  @default(false)
+
+  viewCount     Int            @default(0)        // Incremented on every page load
+
   source        String         @default("JUMO")   // "JUMO" | "SELOGER" | "BIENICI" | etc.
   externalUrl   String?
   externalId    String?        @unique
@@ -126,6 +165,7 @@ model Property {
 
   // Relations
   seller        User?      @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+  savedBy       User[]     @relation("UserSavedProperties")
   offers        Offer[]
   documents     Document[]
   visits        Visit[]
@@ -226,4 +266,122 @@ model Lead {
   @@index([propertyId])
   @@index([email])
   @@map("leads")
+}
+
+// ─── Legal Identity — shared by buyer and seller profiles ─────────────────────
+
+model CivilStatus {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  personType PersonType @default(PARTICULIER)
+
+  // Particulier
+  gender         Gender?
+  firstName      String?
+  lastName       String?
+  maidenName     String?
+  dateOfBirth    DateTime?
+  placeOfBirth   String?
+  nationality    String?   @default("Française")
+  profession     String?
+  currentAddress String?
+  phoneNumber    String?
+  maritalStatus  MaritalStatus?
+
+  // Mariage / PACS (conditional on maritalStatus)
+  dateOfMarriageOrPacs  DateTime?
+  placeOfMarriageOrPacs String?
+  matrimonialRegime     MatrimonialRegime?
+  hasMarriageContract   Boolean  @default(false)
+  notaryName            String?  // conditional on hasMarriageContract
+  notaryCity            String?  // conditional on hasMarriageContract
+
+  // Société
+  companyName       String?
+  siretNumber       String?
+  registeredAddress String?
+  managerName       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("civil_statuses")
+}
+
+// ─── Buyer Profile ────────────────────────────────────────────────────────────
+
+model BuyerProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  purchasingCapacity     Int?    // Budget maximum en euros
+  personalContribution   Int?    // Apport personnel en euros
+  needsMortgage          Boolean @default(false)
+  loanAmountRequested    Int?    // Montant du prêt souhaité (conditional on needsMortgage)
+  isSellingPropertyToBuy Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("buyer_profiles")
+}
+
+// ─── Seller Profile ───────────────────────────────────────────────────────────
+
+model SellerProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Basic property intent
+  propertyCity    String?
+  propertyType    String?   // "Appartement" | "Maison" | "Terrain" | "Autre"
+  propertySurface Int?
+  estimatedPrice  Int?
+  desiredSaleDate DateTime?
+  hasAgentMandate Boolean   @default(false)
+  mandateType     String?   // "exclusif" | "simple"
+
+  // Legal property pre-fill (transferred to Property on listing creation)
+  cadastralParcel       String?
+  fiscalInvariantNumber String?
+  isCopropriete         Boolean @default(false)
+  lotNumbers            String? // conditional on isCopropriete
+  tantiemes             Float?  // conditional on isCopropriete
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("seller_profiles")
+}
+
+// ─── Buyer Criteria — property search preferences for matching ────────────────
+
+model BuyerCriteria {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Location — stored as JSON array of city name strings
+  targetCities  Json    @default("[]")
+
+  // Budget & size (required for matching)
+  maxPrice   Int?
+  minSurface Int?
+  minRooms   Int?
+
+  // Property types — stored as JSON array (e.g. ["Appartement","Maison"])
+  propertyTypes Json    @default("[]")
+
+  // Preferences
+  wantsBalcony Boolean @default(false)
+  wantsParking Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("buyer_criteria")
 }

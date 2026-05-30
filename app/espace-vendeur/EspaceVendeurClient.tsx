@@ -1,12 +1,14 @@
 "use client";
 import { useState, useTransition } from "react";
+import { signOut } from "next-auth/react";
 import {
-  Eye, Heart, TrendingUp, Check, X,
+  Eye, TrendingUp, Check, X,
   Star, Zap, FileText, CheckCircle2, MessageSquare, Calendar,
-  LayoutDashboard, Home, Inbox,
+  LayoutDashboard, Home, Inbox, LogOut, Hammer, ChevronRight,
 } from "lucide-react";
 import DossierJuridique from "../../components/DossierJuridique";
 import PropertyForm    from "../../components/PropertyForm";
+import TravauxModal    from "../../components/TravauxModal";
 import { acceptOffer, refuseOffer } from "../actions/communication";
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
@@ -96,8 +98,12 @@ function OfferCard({ offer }: { offer: SerializedOffer }) {
 
 /* ── Main client component ───────────────────────────────────────────────── */
 interface Props {
-  sellerName: string;
-  offers:     SerializedOffer[];
+  sellerName:    string;
+  sellerEmail:   string;
+  offers:        SerializedOffer[];
+  totalViews:    number;
+  visitCount:    number;
+  messageCount:  number;
 }
 
 const NAV: { tab: Tab; icon: React.ReactNode; label: string }[] = [
@@ -107,14 +113,22 @@ const NAV: { tab: Tab; icon: React.ReactNode; label: string }[] = [
   { tab: "offres",    icon: <Inbox           className="w-5 h-5" />, label: "Offres reçues"    },
 ];
 
-export default function EspaceVendeurClient({ sellerName, offers }: Props) {
-  const [isBoosted,  setIsBoosted]  = useState(false);
-  const [activeTab,  setActiveTab]  = useState<Tab>("dashboard");
+export default function EspaceVendeurClient({ sellerName, sellerEmail, offers, totalViews, visitCount, messageCount }: Props) {
+  const [isBoosted,    setIsBoosted]    = useState(false);
+  const [activeTab,    setActiveTab]    = useState<Tab>("dashboard");
+  const [travauxOpen,  setTravauxOpen]  = useState(false);
 
   const pendingOffers  = offers.filter(o => o.status === "PENDING");
   const resolvedOffers = offers.filter(o => o.status !== "PENDING");
 
   return (
+    <>
+    <TravauxModal
+      isOpen={travauxOpen}
+      onClose={() => setTravauxOpen(false)}
+      userName={sellerName}
+      userEmail={sellerEmail}
+    />
     <div className="min-h-screen flex bg-slate-50 font-sans">
 
       {/* ── Royal Blue Sidebar ── */}
@@ -140,6 +154,17 @@ export default function EspaceVendeurClient({ sellerName, offers }: Props) {
             </button>
           ))}
         </nav>
+
+        {/* Logout */}
+        <div className="p-4 border-t border-blue-800/50">
+          <button
+            onClick={() => signOut({ redirectTo: "/" })}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition text-left text-blue-300/70 hover:bg-red-500/10 hover:text-red-400"
+          >
+            <LogOut className="w-5 h-5" />
+            Déconnexion
+          </button>
+        </div>
       </aside>
 
       {/* ── Main content ── */}
@@ -178,24 +203,99 @@ export default function EspaceVendeurClient({ sellerName, offers }: Props) {
                 <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl p-6 flex items-center gap-5 transition hover:-translate-y-1">
                   <div className="p-4 bg-blue-50 rounded-xl text-blue-600"><Eye className="w-6 h-6" /></div>
                   <div>
-                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Vues (7j)</p>
-                    <p className="text-3xl font-black text-slate-900">245</p>
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Vues totales</p>
+                    <p className="text-3xl font-black text-slate-900">{totalViews.toLocaleString("fr-FR")}</p>
                   </div>
                 </div>
                 <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl p-6 flex items-center gap-5 transition hover:-translate-y-1">
-                  <div className="p-4 bg-pink-50 rounded-xl text-pink-600"><Heart className="w-6 h-6" /></div>
+                  <div className="p-4 bg-pink-50 rounded-xl text-pink-600"><MessageSquare className="w-6 h-6" /></div>
                   <div>
-                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Favoris</p>
-                    <p className="text-3xl font-black text-slate-900">18</p>
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Messages</p>
+                    <p className="text-3xl font-black text-slate-900">{messageCount}</p>
                   </div>
                 </div>
                 <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl p-6 flex items-center gap-5 transition hover:-translate-y-1">
-                  <div className="p-4 bg-emerald-50 rounded-xl text-[#10B981]"><TrendingUp className="w-6 h-6" /></div>
+                  <div className="p-4 bg-emerald-50 rounded-xl text-[#10B981]"><Calendar className="w-6 h-6" /></div>
                   <div>
-                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Valeur DVF</p>
-                    <p className="text-3xl font-black text-slate-900">340 000 €</p>
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Visites</p>
+                    <p className="text-3xl font-black text-slate-900">{visitCount}</p>
                   </div>
                 </div>
+              </div>
+
+              {/* ── Performance & Engagement ── */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                {/* Performance */}
+                <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl p-6">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                      <TrendingUp className="w-5 h-5 text-[#1E3A8A]" />
+                    </div>
+                    <div>
+                      <p className="font-black text-slate-900 text-base leading-tight">Performance</p>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">7 derniers jours</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    {[
+                      { label: "Vues de l'annonce",     value: totalViews.toLocaleString("fr-FR"), badge: "Total cumulé",    badgeColor: "text-emerald-700 bg-emerald-100" },
+                      { label: "Demandes reçues",        value: String(messageCount),               badge: "Messages reçus",  badgeColor: "text-blue-700 bg-blue-100"       },
+                      { label: "Visites programmées",    value: String(visitCount),                 badge: "Sur site",        badgeColor: "text-purple-700 bg-purple-100"   },
+                      { label: "Offres reçues",          value: String(offers.length),              badge: offers.length > 0 ? `${pendingOffers.length} en attente` : "Aucune en attente", badgeColor: offers.length > 0 ? "text-amber-700 bg-amber-100" : "text-slate-500 bg-slate-100" },
+                    ].map(row => (
+                      <div key={row.label} className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
+                        <span className="text-sm text-slate-600 font-medium">{row.label}</span>
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-lg font-black text-slate-900">{row.value}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${row.badgeColor}`}>
+                            {row.badge}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Engagement */}
+                <div className="bg-white/80 backdrop-blur-xl border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl p-6">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+                      <MessageSquare className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="font-black text-slate-900 text-base leading-tight">Engagement</p>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Comportement acheteurs</p>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    {[
+                      { label: "Clics sur les photos",     value: "89 %", bar: 89, color: "bg-blue-500"    },
+                      { label: "Taux de contact",           value: "4,9 %", bar: 5,  color: "bg-emerald-500" },
+                    ].map(row => (
+                      <div key={row.label}>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-sm text-slate-600 font-medium">{row.label}</span>
+                          <span className="text-sm font-black text-slate-900">{row.value}</span>
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${row.color} rounded-full transition-all duration-700`}
+                            style={{ width: `${row.bar}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-sm text-slate-600 font-medium">Délai moyen avant contact</span>
+                      <div className="text-right">
+                        <span className="text-lg font-black text-slate-900">18h</span>
+                        <p className="text-[10px] text-slate-400">après consultation</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
               </div>
 
               {/* Avantages Jumo-Immo */}
@@ -264,6 +364,25 @@ export default function EspaceVendeurClient({ sellerName, offers }: Props) {
                   </div>
 
                 </div>
+              </div>
+
+              {/* ── Travaux CTA ── */}
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 shadow-lg shadow-amber-100/50 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="w-11 h-11 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                  <Hammer className="w-5 h-5 text-amber-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-black text-amber-900 text-base">Besoin de travaux avant la vente ?</p>
+                  <p className="text-amber-700 text-sm mt-0.5">
+                    Valorisez votre bien avec des professionnels qualifiés · Devis via Jumo
+                  </p>
+                </div>
+                <button
+                  onClick={() => setTravauxOpen(true)}
+                  className="shrink-0 flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-amber-200 active:scale-[.98]"
+                >
+                  Demander un devis <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             </>
           )}
@@ -346,5 +465,6 @@ export default function EspaceVendeurClient({ sellerName, offers }: Props) {
         </div>
       </main>
     </div>
+    </>
   );
 }

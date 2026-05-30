@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { auth } from "@/auth";
 import { prisma } from "../../../lib/prisma";
 import PropertyDetailClient from "../../../components/PropertyDetailClient";
 
@@ -8,16 +9,32 @@ type PageProps = { params: Promise<{ id: string }> };
 export default async function AnnoncePage({ params }: PageProps) {
   const { id } = await params;
 
-  console.log("Fetching property ID:", id);
-
-  const property = await prisma.property.findUnique({
-    where: { id },
-    include: { seller: { select: { name: true } } },
-  });
+  const [property, session] = await Promise.all([
+    prisma.property.findUnique({
+      where: { id },
+      include: { seller: { select: { name: true } } },
+    }),
+    auth(),
+  ]);
 
   if (!property) notFound();
 
-  // Format the price-drop date server-side so the prop is a plain string
+  // Non-blocking view increment — fire and forget
+  prisma.property.update({
+    where: { id },
+    data: { viewCount: { increment: 1 } },
+  }).catch(() => {});
+
+  // Check if the logged-in user has saved this property
+  let isSaved = false;
+  if (session?.user?.id) {
+    const saved = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { savedProperties: { where: { id }, select: { id: true } } },
+    });
+    isSaved = (saved?.savedProperties ?? []).length > 0;
+  }
+
   const priceDropDate = new Intl.DateTimeFormat("fr-FR", {
     day: "numeric",
     month: "long",
@@ -55,6 +72,9 @@ export default async function AnnoncePage({ params }: PageProps) {
       hasCellar={property.hasCellar}
       source={property.source}
       externalUrl={property.externalUrl}
+      externalId={property.externalId}
+      isSaved={isSaved}
+      isAuthenticated={!!session?.user}
     />
   );
 }
