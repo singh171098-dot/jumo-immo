@@ -80,6 +80,7 @@ enum DocumentType {
   ASSAINISSEMENT     // Assainissement non collectif
   ELECTRICITE        // Diagnostic électricité
   GAZ                // Diagnostic gaz
+  OFFRE_ACHAT        // Offre d'achat générée par la plateforme
 }
 
 enum VisitStatus {
@@ -102,12 +103,14 @@ model User {
   updatedAt      DateTime   @updatedAt
 
   // Relations
-  properties      Property[]
-  savedProperties Property[]    @relation("UserSavedProperties")
-  buyerProfile    BuyerProfile?
-  buyerCriteria   BuyerCriteria?
-  sellerProfile   SellerProfile?
-  civilStatus     CivilStatus?
+  properties       Property[]
+  savedProperties  Property[]    @relation("UserSavedProperties")
+  buyerProfile     BuyerProfile?
+  buyerCriteria    BuyerCriteria?
+  sellerProfile    SellerProfile?
+  civilStatus      CivilStatus?
+  sentMessages     Message[]     @relation("MessagesSent")
+  receivedMessages Message[]     @relation("MessagesReceived")
 
   @@map("users")
 }
@@ -185,6 +188,8 @@ model Offer {
   buyerName        String
   buyerEmail       String
   financingDetails String?     // Ex : "Prêt validé à 80% — Banque Postale — apport 40 000 €"
+  validityDays     Int         @default(8)  // Durée de validité de l'offre en jours
+  pdfUrl           String?     // URL de stockage du PDF généré (cloud storage optionnel)
   status           OfferStatus @default(PENDING)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
@@ -237,14 +242,21 @@ model Visit {
 model Message {
   id         String   @id @default(cuid())
   propertyId String
+  senderId   String?
+  receiverId String?
   senderName String
-  senderRole String   // "buyer" | "seller"
+  senderRole String
   body       String
+  isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
 
   property  Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sender    User?    @relation("MessagesSent",     fields: [senderId],   references: [id], onDelete: SetNull)
+  receiver  User?    @relation("MessagesReceived", fields: [receiverId], references: [id], onDelete: SetNull)
 
   @@index([propertyId])
+  @@index([senderId])
+  @@index([receiverId])
   @@map("messages")
 }
 

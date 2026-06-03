@@ -58,6 +58,9 @@ export async function createProperty(
   const title          = String(formData.get("title")          ?? "").trim();
   const type           = String(formData.get("type")           ?? "").trim();
   const city           = String(formData.get("city")           ?? "").trim();
+  // Pre-verified coordinates from the address autocomplete (api-adresse.data.gouv.fr)
+  const formLat        = formData.get("lat")  ? Number(formData.get("lat"))  : null;
+  const formLng        = formData.get("lng")  ? Number(formData.get("lng"))  : null;
   const price          = Number(formData.get("price"));
   const surface        = Number(formData.get("surface"));
   const rooms          = Number(formData.get("rooms"));
@@ -98,8 +101,11 @@ export async function createProperty(
     .trim();
 
   const cityEntry = Object.entries(CITY_DATA).find(([key]) => normalised.includes(key));
-  const { lat, lng, avgPerSqm } = cityEntry?.[1]
-    ?? { lat: 48.8566, lng: 2.3522, avgPerSqm: 3000 };  // Paris fallback
+  const fallback  = cityEntry?.[1] ?? { lat: 48.8566, lng: 2.3522, avgPerSqm: 3000 };
+  // Prefer coordinates from the verified address API over the static CITY_DATA map
+  const lat       = (formLat !== null && !isNaN(formLat)) ? formLat : fallback.lat;
+  const lng       = (formLng !== null && !isNaN(formLng)) ? formLng : fallback.lng;
+  const { avgPerSqm } = fallback;
 
   /* Compute FairScore (60–95) based on price vs DVF market + seller signals */
   const pricePerSqm = Math.round(price / surface);

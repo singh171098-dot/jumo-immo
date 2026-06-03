@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Loader2, CheckCircle2, AlertCircle, ArrowRight, RotateCcw, ImagePlus, X } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, ArrowRight, RotateCcw, ImagePlus, X, MapPin } from "lucide-react";
 import { CldUploadWidget } from "next-cloudinary";
 import { createProperty, type CreatePropertyResult } from "../app/actions/property";
 import UploadLink from "./UploadLink";
@@ -64,6 +64,67 @@ const LABEL = "block text-[10px] font-bold text-slate-400 uppercase tracking-wid
 
 /* ── Component ───────────────────────────────────────────────────────────── */
 export default function PropertyForm() {
+  /* ── Address autocomplete ── */
+  const [cityQuery,          setCityQuery]          = useState("");
+  const [citySuggestions,    setCitySuggestions]    = useState<{ label: string; lat: number; lng: number }[]>([]);
+  const [isAddressVerified,  setIsAddressVerified]  = useState(false);
+  const [cityFetching,       setCityFetching]       = useState(false);
+  const [addressCoords,      setAddressCoords]      = useState<{ lat: number; lng: number } | null>(null);
+  const cityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestionsRef  = useRef<HTMLDivElement>(null);
+
+  /* Close suggestions on outside click */
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setCitySuggestions([]);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  async function fetchCitySuggestions(q: string) {
+    if (q.length < 2) { setCitySuggestions([]); return; }
+    setCityFetching(true);
+    try {
+      const res  = await fetch(
+        `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&type=municipality&limit=6`,
+      );
+      const data = await res.json() as { features?: { properties: { label: string; city?: string }; geometry: { coordinates: [number, number] } }[] };
+      setCitySuggestions(
+        (data.features ?? []).map(f => ({
+          label: f.properties.label ?? f.properties.city ?? "",
+          lat:   f.geometry.coordinates[1],
+          lng:   f.geometry.coordinates[0],
+        })),
+      );
+    } catch {
+      setCitySuggestions([]);
+    } finally {
+      setCityFetching(false);
+    }
+  }
+
+  function handleCityChange(value: string) {
+    setCityQuery(value);
+    setIsAddressVerified(false);
+    setAddressCoords(null);
+    if (cityDebounceRef.current) clearTimeout(cityDebounceRef.current);
+    if (value.length >= 2) {
+      cityDebounceRef.current = setTimeout(() => fetchCitySuggestions(value), 320);
+    } else {
+      setCitySuggestions([]);
+    }
+  }
+
+  function selectCity(suggestion: { label: string; lat: number; lng: number }) {
+    setCityQuery(suggestion.label);
+    setAddressCoords({ lat: suggestion.lat, lng: suggestion.lng });
+    setIsAddressVerified(true);
+    setCitySuggestions([]);
+  }
+
   const [selectedType,       setSelectedType]       = useState("Appartement");
   const [selectedDpe,        setSelectedDpe]        = useState("");
   const [selectedInsulation, setSelectedInsulation] = useState("");
@@ -90,6 +151,10 @@ export default function PropertyForm() {
     e.preventDefault();
 
     if (!selectedDpe) { setError("Veuillez sélectionner la classe DPE."); return; }
+    if (!isAddressVerified) {
+      setError("Veuillez sélectionner une adresse officielle dans la liste proposée.");
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -100,6 +165,11 @@ export default function PropertyForm() {
     fd.set("insulation",  selectedInsulation);
     fd.set("heatingType", selectedHeating);
     fd.set("images",      JSON.stringify(imageUrls));
+    // Pass verified coordinates so the server doesn't have to guess from CITY_DATA
+    if (addressCoords) {
+      fd.set("lat", String(addressCoords.lat));
+      fd.set("lng", String(addressCoords.lng));
+    }
     fd.set("hasBalcony",  String(amenities.hasBalcony));
     fd.set("hasParking",  String(amenities.hasParking));
     fd.set("hasElevator", String(amenities.hasElevator));
@@ -238,14 +308,50 @@ export default function PropertyForm() {
           <input type="hidden" name="type" value={selectedType} />
         </div>
 
-        {/* City */}
-        <div>
+        {/* City — with official address autocomplete */}
+        <div className="relative">
           <label htmlFor="city" className={LABEL}>Ville</label>
           <input
-            id="city" name="city" type="text" required
-            placeholder="Ex : Lyon, Paris 11e, Bordeaux…"
-            className={INPUT} disabled={loading}
+            id="city" name="city" type="text" required autoComplete="off"
+            value={cityQuery}
+            onChange={e => handleCityChange(e.target.value)}
+            placeholder="Ex : Lyon, Paris, Bordeaux…"
+            className={`${INPUT} ${!isAddressVerified && cityQuery.length > 0 ? "border-amber-400 focus:border-amber-500" : ""}`}
+            disabled={loading}
           />
+
+          {/* Verified badge */}
+          {isAddressVerified && (
+            <span className="absolute right-3 top-[38px] flex items-center gap-1 text-emerald-600 text-xs font-bold">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Vérifiée
+            </span>
+          )}
+
+          {/* Suggestions dropdown */}
+          {citySuggestions.length > 0 && !isAddressVerified && (
+            <div
+              ref={suggestionsRef}
+              className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden"
+            >
+              {citySuggestions.map((s, i) => (
+                <button
+                  key={i} type="button"
+                  onMouseDown={e => { e.preventDefault(); selectCity(s); }}
+                  className="w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition flex items-center gap-2"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Warning when editing after no selection */}
+          {!isAddressVerified && cityQuery.length >= 2 && !cityFetching && citySuggestions.length === 0 && (
+            <p className="mt-1.5 text-xs text-amber-600 font-medium">
+              Veuillez sélectionner une adresse officielle dans la liste proposée.
+            </p>
+          )}
         </div>
 
         {/* Price */}

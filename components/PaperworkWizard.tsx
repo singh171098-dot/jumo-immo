@@ -10,6 +10,7 @@ import {
 import { formatPrice } from "../lib/utils/formatters";
 import UploadLink from "./UploadLink";
 import PaywallModal from "./PaywallModal";
+import { createLegalOffer } from "@/app/actions/offers";
 
 /* ── Props ───────────────────────────────────────────────────────────────── */
 interface PaperworkWizardProps {
@@ -18,6 +19,9 @@ interface PaperworkWizardProps {
   surface?:             number;
   /** Pre-fills the offer price input — set by NegotiationAssistant */
   suggestedOfferPrice?: number;
+  /** When provided, enables DB-backed offer creation + PDF download */
+  propertyId?:          string;
+  isAuthenticated?:     boolean;
 }
 
 /* ── DDT checklist items ─────────────────────────────────────────────────── */
@@ -84,6 +88,8 @@ export default function PaperworkWizard({
   cityAvgPerSqm = 3800,
   surface = 0,
   suggestedOfferPrice,
+  propertyId,
+  isAuthenticated = false,
 }: PaperworkWizardProps) {
 
   const [step, setStep]       = useState<StepKey>("OFFER");
@@ -163,6 +169,11 @@ export default function PaperworkWizard({
   const [isPremiumWizard,   setIsPremiumWizard]   = useState(false);
   const [showWizardPaywall, setShowWizardPaywall] = useState(false);
 
+  /* ── PDF generation state ── */
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [pdfOfferId,    setPdfOfferId]    = useState<string | null>(null);
+  const [pdfError,      setPdfError]      = useState<string | null>(null);
+
   /* ── Derived ── */
   const financingClause = loanAmount
     ? `Sous réserve d'obtention d'un prêt immobilier de ${Number(loanAmount).toLocaleString("fr-FR")} €`
@@ -170,7 +181,36 @@ export default function PaperworkWizard({
 
   function handleGenerateOffer() {
     if (!buyerName.trim() || !propertyAddress.trim() || !offerPrice) return;
+    setPdfOfferId(null);
+    setPdfError(null);
     setOfferGenerated(true);
+  }
+
+  async function handleDownloadPdf() {
+    if (!propertyId) return;
+    if (!isAuthenticated) { setPdfError("Connectez-vous pour télécharger l'offre."); return; }
+
+    setPdfGenerating(true);
+    setPdfError(null);
+
+    const result = await createLegalOffer({
+      propertyId,
+      offerAmount:      Number(offerPrice),
+      financingDetails: loanAmount ? financingClause : null,
+      validityDays:     8,
+    });
+
+    if (!result.success || !result.offerId) {
+      setPdfError(result.error ?? "Une erreur est survenue. Réessayez.");
+      setPdfGenerating(false);
+      return;
+    }
+
+    setPdfOfferId(result.offerId);
+    setPdfGenerating(false);
+
+    // Trigger download via the Route Handler
+    window.open(`/api/offers/${result.offerId}/pdf`, "_blank");
   }
 
   function handleNotaryExport() {
@@ -414,12 +454,63 @@ export default function PaperworkWizard({
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => setOfferGenerated(false)}
-                      className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-gray-300 transition"
-                    >
-                      <RefreshCcw size={12} /> Modifier l'offre
-                    </button>
+                    <div className="flex items-center justify-between gap-3">
+                      <button
+                        onClick={() => setOfferGenerated(false)}
+                        className="flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-gray-300 transition"
+                      >
+                        <RefreshCcw size={12} /> Modifier l'offre
+                      </button>
+
+                      {/* PDF download — available when propertyId is wired */}
+                      {propertyId ? (
+                        pdfOfferId ? (
+                          <button
+                            onClick={() => window.open(`/api/offers/${pdfOfferId}/pdf`, "_blank")}
+                            className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 hover:text-emerald-300 transition"
+                          >
+                            <CheckCircle2 size={12} /> Re-télécharger le PDF
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleDownloadPdf}
+                            disabled={pdfGenerating}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#1E3A8A] to-blue-600 hover:from-blue-800 hover:to-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs transition-all active:scale-[.98]"
+                          >
+                            {pdfGenerating ? (
+                              <>
+                                <span className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin shrink-0" />
+                                <span className="animate-pulse">Génération en cours…</span>
+                              </>
+                            ) : (
+                              <>
+                                <Send size={12} />
+                                Télécharger l'offre PDF
+                              </>
+                            )}
+                          </button>
+                        )
+                      ) : null}
+                    </div>
+
+                    {/* Error message */}
+                    {pdfError && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-xl">
+                        <AlertTriangle size={12} className="text-red-400 shrink-0" />
+                        <p className="text-xs text-red-300 font-medium">{pdfError}</p>
+                      </div>
+                    )}
+
+                    {/* Success confirmation */}
+                    {pdfOfferId && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                        <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
+                        <p className="text-xs text-emerald-300 font-medium">
+                          Offre enregistrée et PDF téléchargé ·{" "}
+                          <span className="font-mono">OA-{pdfOfferId.slice(0, 6).toUpperCase()}</span>
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 

@@ -1,34 +1,33 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { leadSchema, firstZodError } from "@/lib/validations";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { firstName, lastName, email, postalCode, propertyId, rgpdConsent } = body ?? {};
 
-    if (
-      !firstName?.trim() ||
-      !lastName?.trim()  ||
-      !email?.trim()     ||
-      !postalCode?.trim()||
-      !propertyId        ||
-      rgpdConsent !== true
-    ) {
+    /* ── Validate payload ── */
+    const parsed = leadSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Tous les champs sont requis et le consentement RGPD est obligatoire." },
+        { error: firstZodError(parsed.error) },
         { status: 400 },
       );
     }
 
+    const { firstName, lastName, email, postalCode, propertyId } = parsed.data;
+
+    /* ── Verify property exists ── */
+    const property = await prisma.property.findUnique({
+      where:  { id: propertyId },
+      select: { id: true },
+    });
+    if (!property) {
+      return NextResponse.json({ error: "Bien introuvable." }, { status: 404 });
+    }
+
     await prisma.lead.create({
-      data: {
-        firstName:   firstName.trim(),
-        lastName:    lastName.trim(),
-        email:       email.trim().toLowerCase(),
-        postalCode:  postalCode.trim(),
-        propertyId,
-        rgpdConsent: true,
-      },
+      data: { firstName, lastName, email, postalCode, propertyId, rgpdConsent: true },
     });
 
     return NextResponse.json({ success: true });

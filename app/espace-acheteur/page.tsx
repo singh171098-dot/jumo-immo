@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "../../lib/prisma";
 import EspaceAcheteurClient from "./EspaceAcheteurClient";
-import type { SavedProperty, SerializedBuyerCriteria, RecommendedProperty } from "./EspaceAcheteurClient";
+import type { SavedProperty, SerializedBuyerCriteria, RecommendedProperty, BuyerConversation } from "./EspaceAcheteurClient";
 
 /* ── Title → property type extractor (mirrors HomeClientUI dbToListings) ──── */
 function extractType(title: string): string {
@@ -190,13 +190,72 @@ export default async function EspaceAcheteurPage() {
     recommendedProperties = scored.map(({ hasBalcony, hasParking, ...rest }) => rest);
   }
 
+  /* ── Buyer inbox ── */
+  const buyerId = session.user.id;
+
+  const inboxMessages = await prisma.message.findMany({
+    where: {
+      OR: [
+        { senderId:   buyerId },
+        { receiverId: buyerId },
+      ],
+      AND: [
+        { senderId:   { not: null } },
+        { receiverId: { not: null } },
+      ],
+    },
+    select: {
+      id:         true,
+      body:       true,
+      createdAt:  true,
+      senderId:   true,
+      receiverId: true,
+      isRead:     true,
+      property: { select: { id: true, title: true, images: true, city: true } },
+      sender:   { select: { id: true, name: true } },
+      receiver: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const convMap = new Map<string, BuyerConversation>();
+
+  for (const msg of inboxMessages) {
+    if (!msg.senderId || !msg.receiverId) continue;
+
+    const isFromMe  = msg.senderId === buyerId;
+    const otherId   = isFromMe ? msg.receiverId : msg.senderId;
+    const otherUser = isFromMe ? msg.receiver   : msg.sender;
+    const key       = `${msg.property.id}__${otherId}`;
+
+    if (!convMap.has(key)) {
+      convMap.set(key, {
+        propertyId:    msg.property.id,
+        propertyTitle: msg.property.title,
+        propertyCover: msg.property.images[0] ?? "",
+        propertyCity:  msg.property.city,
+        otherUserId:   otherId,
+        otherUserName: otherUser?.name ?? "Vendeur",
+        lastMessage:   msg.body,
+        lastActivity:  msg.createdAt.toISOString(),
+        unreadCount:   !isFromMe && !msg.isRead ? 1 : 0,
+      });
+    } else if (!isFromMe && !msg.isRead) {
+      convMap.get(key)!.unreadCount++;
+    }
+  }
+
+  const inbox = Array.from(convMap.values());
+
   return (
     <EspaceAcheteurClient
       userName={session.user.name ?? "Acheteur"}
       userEmail={session.user.email ?? ""}
+      userId={buyerId}
       savedProperties={savedProperties}
       initialCriteria={buyerCriteria}
       recommendedProperties={recommendedProperties}
+      inbox={inbox}
     />
   );
 }

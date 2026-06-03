@@ -17,6 +17,7 @@ import ChatPanel from "./ChatPanel";
 import VisitBooker from "./VisitBooker";
 import NegotiationAssistant from "./NegotiationAssistant";
 import LeadCaptureModal from "./LeadCaptureModal";
+import AuthModal from "./AuthModal";
 
 /* ── Fallback gallery when no images uploaded ─────────────────────────────── */
 const FALLBACK_GALLERY = [
@@ -73,7 +74,10 @@ export interface PropertyDetailProps {
   fairScore: number;
   cityAvgPerSqm: number;
   priceDropDate: string;
+  sellerId: string | null;
   sellerName: string;
+  sessionUserId: string | null;
+  sessionUserName: string | null;
   images: string[];
   heatingType?: string | null;
   insulationLevel?: string | null;
@@ -110,6 +114,7 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
   const [suggestedPrice, setSuggestedPrice] = useState<number | undefined>(undefined);
   const [showLeadModal,  setShowLeadModal]  = useState(false);
   const [isUnlocked,     setIsUnlocked]     = useState(false);
+  const [showAuthModal,  setShowAuthModal]  = useState(false);
   const wizardRef = useRef<HTMLDivElement>(null);
 
   /* Partner listing flag — drives conditional UI */
@@ -151,6 +156,15 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
                  : "text-emerald-300";
 
   const dpeBg = DPE_BG[p.dpe] ?? "bg-gray-500";
+
+  // Seller should not contact themselves
+  const isOwnProperty = !!(p.sellerId && p.sessionUserId && p.sellerId === p.sessionUserId);
+
+  function handleContactClick() {
+    if (!p.sessionUserId) { setShowAuthModal(true); return; }
+    if (isOwnProperty) return;
+    setActivePanel("chat");
+  }
 
   const prev = () => setActiveImg(i => (i - 1 + gallery.length) % gallery.length);
   const next = () => setActiveImg(i => (i + 1) % gallery.length);
@@ -609,11 +623,12 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
               ) : (
                 <>
                   <button
-                    onClick={() => setActivePanel("chat")}
-                    className="w-full py-4 bg-[#2563EB] hover:bg-blue-500 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm"
+                    onClick={handleContactClick}
+                    disabled={isOwnProperty}
+                    className="w-full py-4 bg-[#2563EB] hover:bg-blue-500 active:scale-[.98] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm"
                   >
                     <Phone size={17} />
-                    Contacter le vendeur
+                    {isOwnProperty ? "Votre annonce" : "Contacter le vendeur"}
                   </button>
                   <button
                     onClick={() => setActivePanel("visit")}
@@ -662,6 +677,8 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
               cityAvgPerSqm={p.cityAvgPerSqm}
               surface={p.surface}
               suggestedOfferPrice={suggestedPrice}
+              propertyId={p.id}
+              isAuthenticated={!!p.sessionUserId}
             />
           </div>
         </motion.div>
@@ -685,8 +702,9 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
       ) : (
         <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-gray-950/95 backdrop-blur-xl border-t border-white/10 px-4 py-3 flex gap-3">
           <button
-            onClick={() => setActivePanel("chat")}
-            className="flex-1 py-3.5 bg-[#2563EB] hover:bg-blue-500 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
+            onClick={handleContactClick}
+            disabled={isOwnProperty}
+            className="flex-1 py-3.5 bg-[#2563EB] hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-sm"
           >
             <Phone size={16} />
             Contacter
@@ -720,12 +738,21 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
         />
       )}
 
-      {!isPartner && (
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={() => { setShowAuthModal(false); setActivePanel("chat"); }}
+      />
+
+      {!isPartner && p.sellerId && p.sessionUserId && (
         <>
           <ChatPanel
             propertyId={p.id}
-            sellerName={p.sellerName}
+            otherUserId={p.sellerId}
+            otherUserName={p.sellerName}
             propertyTitle={p.title}
+            currentUserId={p.sessionUserId}
+            currentUserName={p.sessionUserName ?? "Vous"}
             isOpen={activePanel === "chat"}
             onClose={() => setActivePanel(null)}
           />

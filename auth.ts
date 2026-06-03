@@ -1,10 +1,20 @@
-import NextAuth from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import NextAuth            from "next-auth";
+import Google             from "next-auth/providers/google";
+import Credentials        from "next-auth/providers/credentials";
+import bcrypt             from "bcryptjs";
+import { randomUUID }     from "crypto";
+import { prisma }         from "@/lib/prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
+
+    /* ── Google OAuth ──────────────────────────────────────────────────── */
+    // Reads GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET from environment.
+    // Redirect URI to configure in Google Cloud Console:
+    //   {NEXTAUTH_URL}/api/auth/callback/google
+    Google,
+
+    /* ── Email / Password ──────────────────────────────────────────────── */
     Credentials({
       credentials: {
         email:    { label: "Email",        type: "email"    },
@@ -29,16 +39,53 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  session:   { strategy: "jwt" },
+
+  session: { strategy: "jwt" },
+
   callbacks: {
-    jwt({ token, user }) {
+    /* ── JWT ─────────────────────────────────────────────────────────────
+       Fires once on sign-in (user + account present), then on every
+       session refresh (token only).  Google users are looked up / created
+       in our DB here so session.user.id always refers to our Prisma ID.
+    ───────────────────────────────────────────────────────────────────── */
+    async jwt({ token, user, account }) {
       if (user) {
-        token.id   = user.id;
-        token.role = (user as { id: string; name: string; email: string; role: string }).role;
-        token.name = user.name ?? token.name;
+        if (account?.provider === "google") {
+          const email = user.email?.toLowerCase().trim();
+
+          if (email) {
+            let dbUser = await prisma.user.findUnique({
+              where:  { email },
+              select: { id: true, role: true, name: true },
+            });
+
+            if (!dbUser) {
+              // First Google sign-in — create account with an unusable password hash
+              dbUser = await prisma.user.create({
+                data: {
+                  email,
+                  name:           user.name ?? "Utilisateur",
+                  hashedPassword: await bcrypt.hash(randomUUID(), 10),
+                  role:           "BUYER",
+                },
+                select: { id: true, role: true, name: true },
+              });
+            }
+
+            token.id   = dbUser.id;
+            token.role = dbUser.role;
+            if (!token.name && dbUser.name) token.name = dbUser.name;
+          }
+        } else {
+          // Credentials provider: user object is our DB record
+          token.id   = user.id;
+          token.role = (user as { id: string; name: string; email: string; role: string }).role;
+          if (user.name) token.name = user.name;
+        }
       }
       return token;
     },
+
     session({ session, token }) {
       session.user.id   = token.id   as string;
       session.user.role = token.role as string;
@@ -46,6 +93,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
+
   pages:     { signIn: "/" },
   trustHost: true,
 });

@@ -2,6 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { registerSchema, firstZodError } from "@/lib/validations";
 
 export async function registerUser(data: {
   name:     string;
@@ -9,19 +10,17 @@ export async function registerUser(data: {
   password: string;
   role:     "BUYER" | "SELLER";
 }): Promise<{ success: boolean; error?: string }> {
-  const { name, email, password, role } = data;
 
-  if (!name.trim() || !email.trim() || !password || !role) {
-    return { success: false, error: "Tous les champs sont requis." };
+  /* ── Server-side schema validation ── */
+  const parsed = registerSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: firstZodError(parsed.error) };
   }
-  if (password.length < 8) {
-    return { success: false, error: "Minimum 8 caractères pour le mot de passe." };
-  }
+
+  const { name, email, password, role } = parsed.data;
 
   try {
-    const exists = await prisma.user.findUnique({
-      where: { email: email.trim().toLowerCase() },
-    });
+    const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) {
       return { success: false, error: "Un compte avec cet email existe déjà." };
     }
@@ -29,12 +28,7 @@ export async function registerUser(data: {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     await prisma.user.create({
-      data: {
-        name:  name.trim(),
-        email: email.trim().toLowerCase(),
-        hashedPassword,
-        role,
-      },
+      data: { name, email, hashedPassword, role },
     });
 
     return { success: true };

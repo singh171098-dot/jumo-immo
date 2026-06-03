@@ -12,7 +12,7 @@ export default async function AnnoncePage({ params }: PageProps) {
   const [property, session] = await Promise.all([
     prisma.property.findUnique({
       where: { id },
-      include: { seller: { select: { name: true } } },
+      include: { seller: { select: { id: true, name: true } } },
     }),
     auth(),
   ]);
@@ -61,7 +61,10 @@ export default async function AnnoncePage({ params }: PageProps) {
       fairScore={property.fairScore}
       cityAvgPerSqm={property.cityAvgPerSqm}
       priceDropDate={priceDropDate}
+      sellerId={property.seller?.id ?? null}
       sellerName={property.seller?.name ?? "Partenaire"}
+      sessionUserId={session?.user?.id ?? null}
+      sessionUserName={session?.user?.name ?? null}
       images={property.images}
       heatingType={property.heatingType}
       insulationLevel={property.insulationLevel}

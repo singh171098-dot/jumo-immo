@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "../../lib/prisma";
 import { sendEmail } from "../../lib/email";
+import { submitOfferSchema, bookVisitSchema, firstZodError } from "@/lib/validations";
 
 /* ── Helper: fetch seller email + city for a property ───────────────────── */
 async function getSellerContact(
@@ -32,10 +33,9 @@ export async function submitOffer(data: {
   amount:           number;
   financingDetails?: string;
 }): Promise<{ success: boolean; offerId?: string; error?: string }> {
-  const { propertyId, buyerName, buyerEmail, amount, financingDetails } = data;
-  if (!propertyId || !buyerName.trim() || !buyerEmail.trim() || !amount) {
-    return { success: false, error: "Champs requis." };
-  }
+  const parsed = submitOfferSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: firstZodError(parsed.error) };
+  const { propertyId, buyerName, buyerEmail, amount, financingDetails } = parsed.data;
   try {
     const offer = await prisma.offer.create({
       data: {
@@ -148,13 +148,12 @@ export async function bookVisit(data: {
   propertyId:      string;
   buyerName:       string;
   buyerEmail:      string;
-  slot:            string;  // ISO date string
+  slot:            string;
   proofOfFundsUrl?: string;
 }): Promise<{ success: boolean; visitId?: string; referenceId?: string; error?: string }> {
-  const { propertyId, buyerName, buyerEmail, slot, proofOfFundsUrl } = data;
-  if (!propertyId || !buyerName.trim() || !buyerEmail.trim() || !slot) {
-    return { success: false, error: "Veuillez remplir tous les champs." };
-  }
+  const parsed = bookVisitSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: firstZodError(parsed.error) };
+  const { propertyId, buyerName, buyerEmail, slot, proofOfFundsUrl } = parsed.data;
   try {
     const visit = await prisma.visit.create({
       data: {
