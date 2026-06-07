@@ -627,6 +627,7 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
               activeMarkerPillRef.current = pill;
               activePropertyIdRef.current = id;
               onPropertySelectRef.current?.(id);
+              onMapInteractRef.current?.();
 
               const content = createPopupContent(listing, () => {
                 routerRef.current.push(`/annonces/${listing.id}`);

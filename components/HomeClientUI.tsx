@@ -525,6 +525,12 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [isSidebarOpen,    setIsSidebarOpen]    = useState(true);
+
+  // DEBUG — remove once root cause is confirmed
+  useEffect(() => {
+    console.log("[SIDEBAR]", isSidebarOpen, new Error("trace").stack?.split("\n").slice(1, 5).join(" ← "));
+  }, [isSidebarOpen]);
+
   const [ref1, vis1] = useReveal();
   const [ref2, vis2] = useReveal();
 
@@ -1238,9 +1244,10 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
           mapRef.current?.flyTo(p.lng, p.lat);
           mapRef.current?.selectProperty(p.id);
         }
-      }, 420);
+      }, 450);
     }
 
+    console.log("[RENDER]", { isSidebarOpen, selectedPropertyId, currentView });
     console.log("Sidebar cards:", mapSidebarProps.length);
 
     return (
@@ -1256,7 +1263,7 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
             fullscreen
             ref={mapRef}
             properties={dbProperties}
-            onPropertySelect={(id) => { setSelectedPropertyId(id); setIsSidebarOpen(true); }}
+            onPropertySelect={(id) => { setSelectedPropertyId(id); }}
             onMapInteract={() => setIsSidebarOpen(false)}
             initialCenter={mapInitialCenter}
             initialZoom={mapInitialZoom}
