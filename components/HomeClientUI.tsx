@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import Map3D, { type MapHandle } from "./Map3D";
@@ -235,6 +235,40 @@ const STYLE_TAG = `
   /* Shared */
   .jumo-footer        { padding: 32px 16px !important; }
 }
+
+/* ── Map sidebar listing cards ───────────────────────────────────────── */
+.map-listing-card {
+  border-radius: 12px;
+  border: 1px solid var(--c-border);
+  background: var(--c-bg-card);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+.map-listing-card:hover {
+  border-color: rgba(255,255,255,0.18);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+}
+.map-listing-card.active {
+  border-color: var(--c-gold) !important;
+  background: rgba(200,165,92,0.07) !important;
+  box-shadow: 0 0 0 1px var(--c-gold), 0 10px 32px rgba(200,165,92,0.18) !important;
+}
+.map-search-overlay {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: min(520px, 90%);
+}
+@media (max-width: 767px) {
+  .map-search-overlay { top: 10px; width: min(320px, 88%); }
+  .map-listing-card { margin-bottom: 8px; }
+}
 `;
 
 /* ───────────── COMPONENTS ───────────── */
@@ -434,7 +468,10 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
   const [animatedCount, setAnimatedCount] = useState(0);
   const [priceType, setPriceType] = useState("all");
   const [sortBy, setSortBy] = useState("fairScore");
-  const [hoveredListing, setHoveredListing] = useState<string | null>(null);
+  const [hoveredListing,     setHoveredListing]     = useState<string | null>(null);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+  const [mapSearchCity,      setMapSearchCity]      = useState<string>("");
+  const sidebarRef = useRef<HTMLDivElement>(null);
   const [heroLoaded, setHeroLoaded] = useState(false);
   const [isUiVisible, setIsUiVisible] = useState(true);
   const mapRef = useRef<MapHandle | null>(null);
@@ -496,7 +533,10 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
     setSearchResults([]);
     setHighlightedIndex(-1);
     setIsFocused(false);
-    // Hide search bar; reappear automatically after 5s of no interaction
+    // Update sidebar city filter (map view)
+    const city = feature.properties.city ?? feature.properties.name ?? feature.properties.label.split(",")[0];
+    if (city) setMapSearchCity(city.trim());
+    // Hide hero search bar; reappear automatically after 5s (landing view only)
     setSearchBarVisible(false);
     if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     inactivityTimerRef.current = setTimeout(() => setSearchBarVisible(true), 5000);
@@ -552,6 +592,24 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
       sortBy === "price" ? a.price - b.price :
       a.daysOnMarket - b.daysOnMarket
     );
+
+  /* ── Map sidebar: sorted + optionally city-filtered property list ── */
+  const mapSidebarProps = useMemo(() => {
+    const sorted = [...dbProperties].sort((a, b) => b.fairScore - a.fairScore);
+    if (!mapSearchCity.trim()) return sorted;
+    const q = mapSearchCity.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+    return sorted.filter(p => {
+      const c = p.city.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+      return c.includes(q) || q.includes(c);
+    });
+  }, [dbProperties, mapSearchCity]);
+
+  /* ── Auto-scroll sidebar card into view when marker is clicked ── */
+  useEffect(() => {
+    if (!selectedPropertyId || !sidebarRef.current) return;
+    const el = sidebarRef.current.querySelector(`[data-property-id="${selectedPropertyId}"]`);
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [selectedPropertyId]);
 
   /* ═══════════════════════════════════════════════════
      LANDING
@@ -1106,89 +1164,268 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
   }
 
   /* ═══════════════════════════════════════════════════
-     MAP
+     MAP — Premium split-screen real-estate interface
   ═══════════════════════════════════════════════════ */
   if (currentView === "map") {
+
+    const DPE_CLR: Record<string, string> = { A:"#059669",B:"#10B981",C:"#84CC16",D:"#EAB308",E:"#F97316",F:"#EF4444",G:"#991B1B" };
+
+    function handleCardClick(p: DbProperty) {
+      setSelectedPropertyId(p.id);
+      if (p.lng != null && p.lat != null) {
+        mapRef.current?.flyTo(p.lng, p.lat);
+        mapRef.current?.selectProperty(p.id);
+      }
+    }
+
     return (
-      <div className="map-view-outer" style={{ fontFamily: "var(--font-body)", minHeight: "100vh", background: "var(--c-bg)", color: "var(--c-text)", overflow: "hidden" }}>
+      <div className="map-view-outer" style={{ fontFamily: "var(--font-body)", height: "100vh", background: "var(--c-bg)", color: "var(--c-text)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
         <style>{STYLE_TAG}</style>
         <NavBar currentView={currentView} setCurrentView={setCurrentView} sessionUser={sessionUser} onOpenAuth={() => setShowAuthModal(true)} />
-        <div className="map-view-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", height: "calc(100vh - 62px)" }}>
-          <div style={{ position: "relative", background: "#070D19" }}>
-            <svg viewBox="0 0 560 460" style={{ width: "100%", height: "100%" }}>
-              <defs>
-                <radialGradient id="sea"><stop offset="0%" stopColor="#0D1628" /><stop offset="100%" stopColor="#070D19" /></radialGradient>
-                <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-              </defs>
-              <rect width="560" height="460" fill="url(#sea)" />
-              <path d="M145,85 C160,72 185,65 210,60 C230,55 250,58 265,50 C285,40 310,42 330,48 C350,52 365,58 380,55 C400,50 425,55 445,65 C460,72 470,85 475,100 C478,115 480,130 475,148 C470,160 460,170 455,185 C448,200 440,215 435,230 C432,240 428,250 420,258 C415,268 405,275 398,285 C390,295 385,308 380,320 C375,332 368,340 358,348 C348,358 338,365 325,370 C312,375 300,378 288,380 C275,382 262,378 250,372 C238,368 228,360 218,352 C208,342 198,335 190,325 C182,315 178,305 172,295 C165,282 160,270 155,258 C148,245 145,232 142,218 C138,205 135,192 135,178 C134,165 136,152 138,140 C140,125 142,110 142,95 Z"
-                fill="var(--c-bg-card)" stroke="rgba(37,99,235,0.15)" strokeWidth="0.8" />
-              {REGIONS.map((r, i) => {
-                const size = Math.max(8, Math.min(20, r.listings / 3000));
-                const isSel = selectedRegion?.name === r.name;
-                return (
-                  <g key={i} style={{ cursor: "pointer" }} onClick={() => setSelectedRegion(isSel ? null : r)}>
-                    <circle cx={r.x} cy={r.y} r={size + 10} fill={r.change > 0 ? "rgba(239,68,68,0.08)" : "rgba(37,99,235,0.08)"} opacity={isSel ? 1 : 0.6}>
-                      <animate attributeName="r" values={`${size + 8};${size + 14};${size + 8}`} dur="4s" repeatCount="indefinite" />
-                    </circle>
-                    <circle cx={r.x} cy={r.y} r={size} fill={r.change > 0 ? "var(--c-red)" : "var(--c-blue)"} opacity={isSel ? 1 : 0.7} stroke={isSel ? "var(--c-gold)" : "#fff"} strokeWidth={isSel ? 2 : 0.5} filter={isSel ? "url(#glow)" : undefined} />
-                    <text x={r.x} y={r.y + size + 14} textAnchor="middle" fill="var(--c-text-muted)" fontSize="8" fontWeight="500" fontFamily="var(--font-body)">{r.name.split(" ")[0]}</text>
-                  </g>
-                );
-              })}
-              <text x="280" y="440" textAnchor="middle" fill="var(--c-text-dim)" fontSize="10" fontFamily="var(--font-body)">Cliquez sur une région pour voir les détails</text>
-            </svg>
-            <div style={{ position: "absolute", top: 20, left: 20, display: "flex", gap: 16, fontSize: 11, fontFamily: "var(--font-body)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--c-text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--c-blue)" }} /> Prix en baisse</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--c-text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--c-red)" }} /> Prix en hausse</div>
-            </div>
-          </div>
-          <div className="map-sidebar" style={{ background: "var(--c-bg-elevated)", borderLeft: "1px solid var(--c-border)", padding: 24, overflowY: "auto" }}>
-            {selectedRegion ? (
-              <>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
-                  <div style={{ width: 3, height: 24, background: "var(--c-gold)", borderRadius: 2 }} />
-                  <h3 style={{ fontSize: 18, fontWeight: 800, fontFamily: "var(--font-display)" }}>{selectedRegion.name}</h3>
+
+        <div className="map-view-grid" style={{ display: "grid", gridTemplateColumns: "1fr 390px", flex: 1, overflow: "hidden" }}>
+
+          {/* ── LEFT: Full interactive Map3D ── */}
+          <div style={{ position: "relative", overflow: "hidden" }}>
+            <Map3D
+              fullscreen
+              ref={mapRef}
+              properties={dbProperties}
+              onPropertySelect={(id) => setSelectedPropertyId(id)}
+            />
+
+            {/* ── Search overlay — same pill design as landing hero ── */}
+            <div className="map-search-overlay">
+
+              {/* Dropdown (opens downward on map view) */}
+              {isFocused && searchResults.length > 0 && (
+                <div style={{
+                  position: "absolute",
+                  top: "calc(100% + 8px)", left: 0, right: 0,
+                  background: "rgba(8,12,24,0.97)",
+                  backdropFilter: "blur(24px) saturate(1.8)",
+                  WebkitBackdropFilter: "blur(24px) saturate(1.8)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 16,
+                  boxShadow: "0 24px 48px rgba(0,0,0,0.55)",
+                  overflow: "hidden",
+                  animation: "dropdownIn 0.2s cubic-bezier(0.16,1,0.3,1)",
+                  zIndex: 30,
+                }}>
+                  {searchResults.map((feature, i) => {
+                    const typeLabel = ADDR_TYPE[feature.properties.type] ?? feature.properties.type;
+                    return (
+                      <button
+                        key={i}
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => handleSelect(feature)}
+                        onMouseEnter={() => setHighlightedIndex(i)}
+                        onMouseLeave={() => setHighlightedIndex(-1)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 12,
+                          width: "100%", padding: "11px 16px",
+                          background: highlightedIndex === i ? "rgba(37,99,235,0.14)" : "transparent",
+                          border: "none",
+                          borderBottom: i < searchResults.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
+                          cursor: "pointer", textAlign: "left",
+                          transition: "background 0.1s ease",
+                        }}
+                      >
+                        <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: "rgba(37,99,235,0.14)", border: "1px solid rgba(37,99,235,0.28)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <svg width="10" height="13" viewBox="0 0 10 13" fill="none">
+                            <path d="M5 0C2.24 0 0 2.24 0 5c0 3.75 5 8 5 8s5-4.25 5-8C10 2.24 7.76 0 5 0z" fill="rgba(37,99,235,0.25)" stroke="#2563EB" strokeWidth="1.2" strokeLinejoin="round" />
+                            <circle cx="5" cy="5" r="1.8" fill="#2563EB" />
+                          </svg>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--c-text)", fontFamily: "var(--font-body)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {feature.properties.label}
+                          </div>
+                          {feature.properties.context && (
+                            <div style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 1, fontFamily: "var(--font-body)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {feature.properties.context}
+                            </div>
+                          )}
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 600, flexShrink: 0, padding: "2px 7px", borderRadius: 5, background: "rgba(255,255,255,0.06)", color: "var(--c-text-dim)", fontFamily: "var(--font-body)" }}>
+                          {typeLabel}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-                {[
-                  { label: "Prix moyen / m²", value: `${selectedRegion.price.toLocaleString("fr-FR")} €`, sub: `${selectedRegion.change > 0 ? "+" : ""}${selectedRegion.change}% / an`, subColor: selectedRegion.change > 0 ? "var(--c-red)" : "var(--c-green)" },
-                  { label: "Annonces actives", value: selectedRegion.listings.toLocaleString("fr-FR"), sub: undefined, subColor: undefined },
-                  { label: "Population",       value: selectedRegion.pop,                                sub: undefined, subColor: undefined },
-                ].map((item, i) => (
-                  <div key={i} style={{ padding: "16px 0", borderBottom: "1px solid var(--c-border)" }}>
-                    <div style={{ fontSize: 11, color: "var(--c-text-dim)", marginBottom: 6, letterSpacing: "0.08em", textTransform: "uppercase" }}>{item.label}</div>
-                    <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "var(--font-display)" }}>{item.value}</div>
-                    {item.sub && <div style={{ fontSize: 12, color: item.subColor, marginTop: 4, fontWeight: 600 }}>{item.sub}</div>}
-                  </div>
-                ))}
-                <button onClick={() => setCurrentView("listings")} style={{ width: "100%", marginTop: 20, padding: "14px", borderRadius: 8, background: "var(--c-blue)", border: "none", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-body)", letterSpacing: "0.02em", transition: "background 0.3s ease" }}
+              )}
+
+              {/* Search pill */}
+              <div style={{
+                display: "flex", alignItems: "center",
+                background: "rgba(8,12,24,0.90)",
+                backdropFilter: "blur(20px) saturate(1.8)",
+                WebkitBackdropFilter: "blur(20px) saturate(1.8)",
+                borderRadius: 99, padding: "6px 6px 6px 18px",
+                border: isFocused ? "1px solid rgba(255,255,255,0.28)" : "1px solid rgba(255,255,255,0.14)",
+                boxShadow: "0 16px 40px rgba(0,0,0,0.5)",
+                transition: "border 0.2s ease",
+              }}>
+                {isSearching
+                  ? <div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.15)", borderTopColor: "var(--c-gold)", animation: "spin 0.7s linear infinite", flexShrink: 0, marginRight: 8 }} />
+                  : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: 8 }}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+                }
+                <input
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setTimeout(() => setIsFocused(false), 150)}
+                  placeholder="Ville, quartier, code postal..."
+                  style={{ flex: 1, background: "transparent", border: "none", color: "#fff", fontSize: 13, outline: "none", fontFamily: "var(--font-body)", caretColor: "var(--c-gold)", minWidth: 0 }}
+                />
+                {searchQuery && (
+                  <button onClick={() => { setSearchQuery(""); setSearchResults([]); setMapSearchCity(""); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 16, cursor: "pointer", padding: "0 6px", lineHeight: 1 }}>×</button>
+                )}
+                <button
+                  onClick={() => { const t = highlightedIndex >= 0 ? searchResults[highlightedIndex] : searchResults[0]; if (t) handleSelect(t); }}
+                  style={{ padding: "10px 18px", background: "var(--c-blue)", border: "none", color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-body)", borderRadius: 99, transition: "background 0.2s ease", flexShrink: 0, whiteSpace: "nowrap" }}
                   onMouseEnter={e => { e.currentTarget.style.background = "#1D4ED8"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = "var(--c-blue)"; }}
-                >Voir les annonces →</button>
-              </>
-            ) : (
-              <>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <div style={{ width: 3, height: 20, background: "var(--c-blue)", borderRadius: 2 }} />
-                  <h3 style={{ fontSize: 18, fontWeight: 800, fontFamily: "var(--font-display)" }}>Carte de France</h3>
+                >
+                  Rechercher
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── RIGHT: Listings sidebar ── */}
+          <div
+            className="map-sidebar"
+            ref={sidebarRef}
+            style={{ background: "var(--c-bg-elevated)", borderLeft: "1px solid var(--c-border)", display: "flex", flexDirection: "column", overflow: "hidden" }}
+          >
+            {/* Sidebar header */}
+            <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid var(--c-border)", flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "var(--c-text)", fontFamily: "var(--font-body)", margin: 0 }}>
+                    {mapSidebarProps.length} bien{mapSidebarProps.length !== 1 ? "s" : ""}
+                  </p>
+                  {mapSearchCity && (
+                    <p style={{ fontSize: 11, color: "var(--c-text-muted)", fontFamily: "var(--font-body)", margin: "2px 0 0" }}>
+                      autour de <strong style={{ color: "var(--c-gold)" }}>{mapSearchCity}</strong>
+                    </p>
+                  )}
                 </div>
-                <p style={{ fontSize: 12, color: "var(--c-text-dim)", margin: "0 0 24px", paddingLeft: 11 }}>13 régions · Prix moyens au m²</p>
-                {[...REGIONS].sort((a, b) => b.price - a.price).map((r, i) => (
-                  <div key={i} onClick={() => setSelectedRegion(r)} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--c-border)", cursor: "pointer", fontSize: 12, transition: "all 0.2s ease" }}
-                    onMouseEnter={e => { e.currentTarget.style.paddingLeft = "8px"; }}
-                    onMouseLeave={e => { e.currentTarget.style.paddingLeft = "0"; }}
+                {mapSearchCity && (
+                  <button
+                    onClick={() => setMapSearchCity("")}
+                    style={{ fontSize: 11, color: "var(--c-text-dim)", background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "var(--font-body)", whiteSpace: "nowrap", transition: "border-color 0.2s ease" }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--c-border)"; }}
                   >
-                    <span style={{ color: "var(--c-text-muted)" }}>{r.name}</span>
-                    <div style={{ display: "flex", gap: 10 }}>
-                      <span style={{ fontWeight: 700, fontFamily: "var(--font-display)" }}>{r.price.toLocaleString("fr-FR")} €</span>
-                      <span style={{ color: r.change > 0 ? "var(--c-red)" : "var(--c-green)", fontWeight: 600 }}>{r.change > 0 ? "+" : ""}{r.change}%</span>
+                    Tout afficher ×
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Cards list */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "12px 12px 20px" }}>
+
+              {/* Empty state */}
+              {mapSidebarProps.length === 0 && (
+                <div style={{ textAlign: "center", padding: "48px 16px" }}>
+                  <div style={{ fontSize: 36, marginBottom: 16 }}>🗺️</div>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "var(--c-text)", fontFamily: "var(--font-body)", marginBottom: 8 }}>
+                    Aucun bien ne correspond à votre recherche.
+                  </p>
+                  <p style={{ fontSize: 12, color: "var(--c-text-muted)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+                    Essayez d'élargir votre zone ou votre budget.
+                  </p>
+                  <button
+                    onClick={() => setMapSearchCity("")}
+                    style={{ marginTop: 16, padding: "8px 18px", borderRadius: 8, background: "var(--c-blue-glow)", border: "1px solid rgba(37,99,235,0.3)", color: "var(--c-blue)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-body)", transition: "background 0.2s ease" }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(37,99,235,0.2)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "var(--c-blue-glow)"; }}
+                  >
+                    Voir tous les biens
+                  </button>
+                </div>
+              )}
+
+              {/* Property cards */}
+              {mapSidebarProps.map(p => {
+                const typeMatch   = p.title.match(/^(Appartement|Maison|Studio|Terrain|Villa|Loft)/i);
+                const type        = typeMatch?.[1] ?? "Bien";
+                const typeEmoji   = type === "Maison" ? "⌂" : type === "Terrain" ? "▦" : "⊞";
+                const isActive    = selectedPropertyId === p.id;
+                const scoreColor  = p.fairScore >= 80 ? "var(--c-emerald)" : p.fairScore >= 60 ? "var(--c-gold)" : "var(--c-red)";
+                const scoreLabel  = p.fairScore >= 80 ? "Prix juste" : p.fairScore >= 60 ? "À négocier" : "Surévalué";
+                const thumbBg     = p.fairScore > 70
+                  ? "linear-gradient(135deg,#0B2E1F,var(--c-bg-card))"
+                  : p.fairScore > 50 ? "linear-gradient(135deg,#2D2410,var(--c-bg-card))"
+                  : "linear-gradient(135deg,#2D1010,var(--c-bg-card))";
+
+                return (
+                  <div
+                    key={p.id}
+                    data-property-id={p.id}
+                    className={`map-listing-card${isActive ? " active" : ""}`}
+                    onClick={() => handleCardClick(p)}
+                  >
+                    {/* Cover image */}
+                    <div style={{ height: 130, position: "relative", overflow: "hidden", background: thumbBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, color: "rgba(255,255,255,0.25)" }}>
+                      {p.images[0]
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={p.images[0]} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                        : typeEmoji
+                      }
+                      {/* Gradient overlay */}
+                      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top,rgba(11,17,32,0.45) 0%,transparent 55%)", pointerEvents: "none" }} />
+                      {/* DPE badge */}
+                      <span style={{ position: "absolute", top: 8, right: 8, background: DPE_CLR[p.dpe] ?? "#4A5568", color: "#fff", fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 4, letterSpacing: "0.05em", fontFamily: "var(--font-body)" }}>
+                        DPE {p.dpe}
+                      </span>
+                      {/* FairScore badge */}
+                      {p.fairScore > 0 && (
+                        <span style={{ position: "absolute", top: 8, left: 8, background: "rgba(0,0,0,0.65)", color: scoreColor, fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 4, border: `1px solid ${scoreColor}40`, letterSpacing: "0.03em", fontFamily: "var(--font-body)" }}>
+                          {p.fairScore}/100 — {scoreLabel}
+                        </span>
+                      )}
+                      {/* Source badge */}
+                      <span style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(30,58,138,0.85)", color: "#fff", fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 4, letterSpacing: "0.04em", fontFamily: "var(--font-body)" }}>
+                        {p.isBoosted ? "★ PREMIUM" : "Jumo Immo"}
+                      </span>
+                    </div>
+
+                    {/* Card body */}
+                    <div style={{ padding: "11px 13px 13px" }}>
+                      <div style={{ fontSize: 17, fontWeight: 800, fontFamily: "var(--font-display)", color: isActive ? "var(--c-gold)" : "var(--c-text)", letterSpacing: "-0.02em", lineHeight: 1, marginBottom: 4, transition: "color 0.18s ease" }}>
+                        {p.price.toLocaleString("fr-FR")} €
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--c-text-muted)", fontFamily: "var(--font-body)", marginBottom: 7 }}>
+                        {type} · {p.city} · {p.surface} m²
+                        {p.rooms > 0 ? ` · ${p.rooms} pièce${p.rooms > 1 ? "s" : ""}` : ""}
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: `1px solid ${isActive ? "rgba(200,165,92,0.2)" : "var(--c-border)"}` }}>
+                        <span style={{ fontSize: 11, color: "var(--c-text-dim)", fontFamily: "var(--font-body)" }}>
+                          {Math.round(p.price / p.surface).toLocaleString("fr-FR")} €/m²
+                        </span>
+                        <button
+                          onClick={e => { e.stopPropagation(); router.push(`/annonces/${p.id}`); }}
+                          style={{ fontSize: 11, fontWeight: 600, color: isActive ? "var(--c-gold)" : "var(--c-blue)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-body)", padding: 0, letterSpacing: "0.02em", transition: "color 0.18s ease" }}
+                          onMouseEnter={e => { e.currentTarget.style.textDecoration = "underline"; }}
+                          onMouseLeave={e => { e.currentTarget.style.textDecoration = "none"; }}
+                        >
+                          Voir →
+                        </button>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </>
-            )}
+                );
+              })}
+            </div>
           </div>
         </div>
+
         <AuthModal
           isOpen={showAuthModal}
           onClose={() => { setShowAuthModal(false); setPendingDestination(null); }}

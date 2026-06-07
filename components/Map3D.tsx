@@ -342,12 +342,18 @@ function createPremiumMarkerEl(
 interface Map3DProps {
   fullscreen?: boolean;
   properties?: MapPropertyInput[];
+  /** Called when a property marker is clicked — passes the property id */
+  onPropertySelect?: (id: string) => void;
 }
-export interface MapHandle { flyTo: (lng: number, lat: number) => void; }
+export interface MapHandle {
+  flyTo: (lng: number, lat: number) => void;
+  /** Programmatically set the active marker from the parent (sidebar click) */
+  selectProperty: (id: string | null) => void;
+}
 
 /* ── Map3D ───────────────────────────────────────────────────────────────── */
 const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
-  { fullscreen = false, properties = [] },
+  { fullscreen = false, properties = [], onPropertySelect },
   ref,
 ) {
   const router    = useRouter();
@@ -362,18 +368,25 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
   const styleReady         = useRef(false);
   const pendingData        = useRef<ReturnType<typeof buildGeoJson> | null>(null);
   const debounceTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activePropertyIdRef = useRef<string | null>(null);         // selected property id
-  const activeMarkerPillRef = useRef<HTMLDivElement | null>(null); // selected pill DOM element
+  const activePropertyIdRef   = useRef<string | null>(null);         // selected property id
+  const activeMarkerPillRef   = useRef<HTMLDivElement | null>(null); // selected pill DOM element
+  const onPropertySelectRef   = useRef<((id: string) => void) | undefined>(undefined);
+  useEffect(() => { onPropertySelectRef.current = onPropertySelect; }, [onPropertySelect]);
 
   const [query,       setQuery]       = useState('');
   const [results,     setResults]     = useState<GeoFeature[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isFocused,   setIsFocused]   = useState(false);
 
-  /* Expose flyTo to parent (unchanged) */
+  /* Expose flyTo + selectProperty to parent */
   useImperativeHandle(ref, () => ({
     flyTo: (lng: number, lat: number) => {
       map.current?.flyTo({ center: [lng, lat], zoom: 16, pitch: 68, bearing: 25, duration: 3200, essential: true });
+    },
+    selectProperty: (id: string | null) => {
+      activePropertyIdRef.current = id;
+      /* moveend from flyTo will re-sync; call directly for instant feedback */
+      setTimeout(() => syncMarkersRef.current?.(), 120);
     },
   }));
 
@@ -599,6 +612,7 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
               pill.style.boxShadow   = '0 12px 32px rgba(16,185,129,0.4),0 0 0 2px rgba(16,185,129,0.6)';
               activeMarkerPillRef.current = pill;
               activePropertyIdRef.current = id;
+              onPropertySelectRef.current?.(id);
 
               const content = createPopupContent(listing, () => {
                 routerRef.current.push(`/annonces/${listing.id}`);
