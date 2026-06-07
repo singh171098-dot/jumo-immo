@@ -5,14 +5,31 @@ import bcrypt             from "bcryptjs";
 import { randomUUID }     from "crypto";
 import { prisma }         from "@/lib/prisma";
 
+/* ── Dev-only diagnostic: confirm Google credentials are loaded ─────────── */
+if (process.env.NODE_ENV === "development") {
+  const hasId     = !!process.env.GOOGLE_CLIENT_ID;
+  const hasSecret = !!process.env.GOOGLE_CLIENT_SECRET;
+  if (!hasId || !hasSecret) {
+    console.warn(
+      "[auth] Google OAuth credentials missing:\n" +
+      `  GOOGLE_CLIENT_ID     : ${hasId     ? "present" : "⚠ MISSING"}\n` +
+      `  GOOGLE_CLIENT_SECRET : ${hasSecret ? "present" : "⚠ MISSING"}`,
+    );
+  }
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
 
     /* ── Google OAuth ──────────────────────────────────────────────────── */
-    // Reads GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET from environment.
-    // Redirect URI to configure in Google Cloud Console:
-    //   {NEXTAUTH_URL}/api/auth/callback/google
-    Google,
+    // Auth.js v5 bare-provider shorthand auto-discovers AUTH_GOOGLE_ID /
+    // AUTH_GOOGLE_SECRET.  We use GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
+    // instead, so we must pass them explicitly.
+    // Redirect URI: {origin}/api/auth/callback/google
+    Google({
+      clientId:     process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    }),
 
     /* ── Email / Password ──────────────────────────────────────────────── */
     Credentials({
