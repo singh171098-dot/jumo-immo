@@ -344,6 +344,8 @@ interface Map3DProps {
   properties?: MapPropertyInput[];
   /** Called when a property marker is clicked — passes the property id */
   onPropertySelect?: (id: string) => void;
+  /** Called when the user drags, zooms, or clicks the map background */
+  onMapInteract?: () => void;
   /** Starting map center — read once at mount, used when view switches programmatically */
   initialCenter?: [number, number];
   /** Starting zoom level — read once at mount */
@@ -357,7 +359,7 @@ export interface MapHandle {
 
 /* ── Map3D ───────────────────────────────────────────────────────────────── */
 const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
-  { fullscreen = false, properties = [], onPropertySelect, initialCenter, initialZoom },
+  { fullscreen = false, properties = [], onPropertySelect, onMapInteract, initialCenter, initialZoom },
   ref,
 ) {
   const router    = useRouter();
@@ -376,6 +378,8 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
   const activeMarkerPillRef   = useRef<HTMLDivElement | null>(null); // selected pill DOM element
   const onPropertySelectRef   = useRef<((id: string) => void) | undefined>(undefined);
   useEffect(() => { onPropertySelectRef.current = onPropertySelect; }, [onPropertySelect]);
+  const onMapInteractRef = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => { onMapInteractRef.current = onMapInteract; }, [onMapInteract]);
 
   const [query,       setQuery]       = useState('');
   const [results,     setResults]     = useState<GeoFeature[]>([]);
@@ -409,6 +413,12 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
       antialias: true,
     });
     map.current = m;
+
+    /* ── Map interaction callbacks — fire before style loads ── */
+    m.on('mousedown',  () => onMapInteractRef.current?.());
+    m.on('touchstart', () => onMapInteractRef.current?.());
+    m.on('dragstart',  () => onMapInteractRef.current?.());
+    m.on('zoomstart',  () => onMapInteractRef.current?.());
 
     m.on('style.load', () => {
       /* Night mode + atmosphere (unchanged) */

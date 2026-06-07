@@ -278,6 +278,36 @@ const STYLE_TAG = `
   .map-float-sidebar { display: none; }
   .map-search-overlay { top: 10px; width: min(320px, 88%); left: 50%; }
 }
+
+/* ── Sidebar: hidden scrollbar ──────────────────────────────────────── */
+.premium-scroll {
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.premium-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* ── Map listing cards ──────────────────────────────────────────────── */
+.map-listing-card {
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  margin-bottom: 12px;
+  transition: all 0.25s ease;
+}
+.map-listing-card:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.18);
+  transform: translateY(-2px);
+}
+.map-listing-card.active {
+  border-color: var(--c-gold);
+  box-shadow: 0 0 24px rgba(200,165,92,0.18);
+}
 `;
 
 /* ───────────── COMPONENTS ───────────── */
@@ -494,6 +524,7 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
   const [searchBarVisible, setSearchBarVisible] = useState(true);
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [isSidebarOpen,    setIsSidebarOpen]    = useState(true);
   const [ref1, vis1] = useReveal();
   const [ref2, vis2] = useReveal();
 
@@ -540,6 +571,7 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
   const handleSelect = (feature: AdresseFeature) => {
     const [lng, lat] = feature.geometry.coordinates;
     setIsUiVisible(false);
+    setIsSidebarOpen(true);
 
     // Always update sidebar city filter
     const city = feature.properties.city ?? feature.properties.name ?? feature.properties.label.split(",")[0];
@@ -1199,12 +1231,17 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
     const DPE_CLR: Record<string, string> = { A:"#059669",B:"#10B981",C:"#84CC16",D:"#EAB308",E:"#F97316",F:"#EF4444",G:"#991B1B" };
 
     function handleCardClick(p: DbProperty) {
-      setSelectedPropertyId(p.id);
-      if (p.lng != null && p.lat != null) {
-        mapRef.current?.flyTo(p.lng, p.lat);
-        mapRef.current?.selectProperty(p.id);
-      }
+      setIsSidebarOpen(false);
+      setTimeout(() => {
+        setSelectedPropertyId(p.id);
+        if (p.lng != null && p.lat != null) {
+          mapRef.current?.flyTo(p.lng, p.lat);
+          mapRef.current?.selectProperty(p.id);
+        }
+      }, 420);
     }
+
+    console.log("Sidebar cards:", mapSidebarProps.length);
 
     return (
       <div style={{ fontFamily: "var(--font-body)", height: "100vh", background: "var(--c-bg)", color: "var(--c-text)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
@@ -1212,14 +1249,15 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
         <NavBar currentView={currentView} setCurrentView={setCurrentView} sessionUser={sessionUser} onOpenAuth={() => setShowAuthModal(true)} />
 
         {/* ── Fullscreen map container — sidebar floats on top ── */}
-        <div style={{ position: "relative", flex: 1, overflow: "hidden" }}>
+        <div style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden" }}>
 
           {/* Map fills the entire container */}
           <Map3D
             fullscreen
             ref={mapRef}
             properties={dbProperties}
-            onPropertySelect={(id) => setSelectedPropertyId(id)}
+            onPropertySelect={(id) => { setSelectedPropertyId(id); setIsSidebarOpen(true); }}
+            onMapInteract={() => setIsSidebarOpen(false)}
             initialCenter={mapInitialCenter}
             initialZoom={mapInitialZoom}
           />
@@ -1325,7 +1363,28 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
           </div>
 
           {/* ── Floating glassmorphism sidebar — above the map ── */}
-          <div className="map-float-sidebar" ref={sidebarRef}>
+          <div
+            ref={sidebarRef}
+            style={{
+              position: "absolute",
+              right: 24,
+              top: 85,
+              bottom: 24,
+              width: "clamp(300px, 24vw, 360px)",
+              zIndex: 50,
+              background: "rgba(8,12,24,0.18)",
+              backdropFilter: "blur(22px) saturate(1.8)",
+              WebkitBackdropFilter: "blur(22px) saturate(1.8)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: 24,
+              boxShadow: "0 24px 64px rgba(0,0,0,0.28)",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              transform: isSidebarOpen ? "translateX(0)" : "translateX(calc(100% + 40px))",
+              transition: "transform 550ms cubic-bezier(0.16,1,0.3,1)",
+            }}
+          >
 
             {/* Sticky header */}
             <div style={{
@@ -1362,7 +1421,7 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
             </div>
 
             {/* Cards */}
-            <div style={{ padding: "10px 10px 28px" }}>
+            <div className="premium-scroll" style={{ padding: "10px 10px 28px", flex: 1 }}>
 
               {/* Empty state */}
               {mapSidebarProps.length === 0 && (
@@ -1399,34 +1458,20 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
                     key={p.id}
                     data-property-id={p.id}
                     onClick={() => handleCardClick(p)}
+                    className={`map-listing-card${isActive ? " active" : ""}`}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 12,
                       padding: 14,
-                      marginBottom: 8,
-                      borderRadius: 18,
                       cursor: "pointer",
-                      background: isActive ? "rgba(200,165,92,0.1)" : "rgba(255,255,255,0.04)",
                       backdropFilter: "blur(12px)",
                       WebkitBackdropFilter: "blur(12px)",
-                      border: `1px solid ${isActive ? "rgba(200,165,92,0.4)" : "rgba(255,255,255,0.06)"}`,
-                      boxShadow: isActive ? "0 0 20px rgba(200,165,92,0.15), 0 0 0 1px rgba(200,165,92,0.2)" : "none",
-                      transition: "border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.2s cubic-bezier(0.16,1,0.3,1)",
-                    }}
-                    onMouseEnter={e => {
-                      if (!isActive) {
-                        e.currentTarget.style.background = "rgba(255,255,255,0.07)";
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)";
-                        e.currentTarget.style.transform = "translateY(-1px)";
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      if (!isActive) {
-                        e.currentTarget.style.background = "rgba(255,255,255,0.04)";
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
-                        e.currentTarget.style.transform = "translateY(0)";
-                      }
+                      ...(isActive && {
+                        background: "rgba(200,165,92,0.1)",
+                        border: "1px solid rgba(200,165,92,0.4)",
+                        boxShadow: "0 0 20px rgba(200,165,92,0.15), 0 0 0 1px rgba(200,165,92,0.2)",
+                      }),
                     }}
                   >
                     {/* Square thumbnail */}
@@ -1482,6 +1527,49 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
               })}
             </div>
           </div>
+
+          {/* ── Drawer handle — always visible, tracks sidebar edge ── */}
+          <button
+            onClick={() => setIsSidebarOpen(v => !v)}
+            style={{
+              position: "absolute",
+              top: "50%",
+              right: isSidebarOpen
+                ? "calc(clamp(300px, 24vw, 360px) - 22px)"
+                : "16px",
+              transform: isSidebarOpen
+                ? "translateY(-50%) rotate(0deg)"
+                : "translateY(-50%) rotate(180deg)",
+              transition: "right 550ms cubic-bezier(0.16,1,0.3,1), transform 400ms ease",
+              zIndex: 70,
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              background: "rgba(8,12,24,0.55)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              boxShadow: "0 12px 32px rgba(0,0,0,0.25)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: "var(--c-gold)",
+              padding: 0,
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = e.currentTarget.style.transform.replace(/scale\([^)]+\)/, "") + " scale(1.05)";
+              e.currentTarget.style.boxShadow = "0 16px 40px rgba(0,0,0,0.35)";
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = e.currentTarget.style.transform.replace(/ scale\([^)]+\)/, "");
+              e.currentTarget.style.boxShadow = "0 12px 32px rgba(0,0,0,0.25)";
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
         </div>
 
         <AuthModal
