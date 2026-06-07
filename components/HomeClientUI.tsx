@@ -236,38 +236,47 @@ const STYLE_TAG = `
   .jumo-footer        { padding: 32px 16px !important; }
 }
 
-/* ── Map sidebar listing cards ───────────────────────────────────────── */
-.map-listing-card {
-  border-radius: 12px;
-  border: 1px solid var(--c-border);
-  background: var(--c-bg-card);
-  cursor: pointer;
-  overflow: hidden;
-  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
-  margin-bottom: 10px;
-  flex-shrink: 0;
-}
-.map-listing-card:hover {
-  border-color: rgba(255,255,255,0.18);
-  transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-}
-.map-listing-card.active {
-  border-color: var(--c-gold) !important;
-  background: rgba(200,165,92,0.07) !important;
-  box-shadow: 0 0 0 1px var(--c-gold), 0 10px 32px rgba(200,165,92,0.18) !important;
-}
+/* ── Map: search overlay ─────────────────────────────────────────────── */
 .map-search-overlay {
   position: absolute;
   top: 16px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
-  width: min(520px, 90%);
+  width: min(520px, 60%);
+}
+
+/* ── Map: floating glassmorphism sidebar ─────────────────────────────── */
+@keyframes sidebarIn {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.map-float-sidebar {
+  position: absolute;
+  top: 88px;
+  right: 24px;
+  bottom: 24px;
+  width: 380px;
+  z-index: 40;
+  overflow-y: auto;
+  border-radius: 28px;
+  background: rgba(15,23,42,0.55);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  animation: sidebarIn 0.3s cubic-bezier(0.16,1,0.3,1);
+}
+/* hide scrollbar but keep scrolling */
+.map-float-sidebar::-webkit-scrollbar { width: 0px; }
+
+@media (max-width: 1100px) {
+  .map-float-sidebar { width: 320px; }
+  .map-search-overlay { width: min(420px, 55%); }
 }
 @media (max-width: 767px) {
-  .map-search-overlay { top: 10px; width: min(320px, 88%); }
-  .map-listing-card { margin-bottom: 8px; }
+  .map-float-sidebar { display: none; }
+  .map-search-overlay { top: 10px; width: min(320px, 88%); left: 50%; }
 }
 `;
 
@@ -471,6 +480,8 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
   const [hoveredListing,     setHoveredListing]     = useState<string | null>(null);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [mapSearchCity,      setMapSearchCity]      = useState<string>("");
+  const [mapInitialCenter,   setMapInitialCenter]   = useState<[number, number]>([2.3364, 48.8602]);
+  const [mapInitialZoom,     setMapInitialZoom]     = useState<number>(5.5);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const [heroLoaded, setHeroLoaded] = useState(false);
   const [isUiVisible, setIsUiVisible] = useState(true);
@@ -528,14 +539,29 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
 
   const handleSelect = (feature: AdresseFeature) => {
     const [lng, lat] = feature.geometry.coordinates;
-    mapRef.current?.flyTo(lng, lat);
+    setIsUiVisible(false);
+
+    // Always update sidebar city filter
+    const city = feature.properties.city ?? feature.properties.name ?? feature.properties.label.split(",")[0];
+    if (city) setMapSearchCity(city.trim());
+
     setSearchQuery(feature.properties.label);
     setSearchResults([]);
     setHighlightedIndex(-1);
     setIsFocused(false);
-    // Update sidebar city filter (map view)
-    const city = feature.properties.city ?? feature.properties.name ?? feature.properties.label.split(",")[0];
-    if (city) setMapSearchCity(city.trim());
+
+    if (currentView === "map") {
+      // Already on map view — fly the existing Map3D instance
+      mapRef.current?.flyTo(lng, lat);
+    } else {
+      // Switching from landing → map view.
+      // Set initialCenter so the new Map3D mounts already at the searched city
+      // (calling flyTo would target the landing Map3D which is about to unmount).
+      setMapInitialCenter([lng, lat]);
+      setMapInitialZoom(12);
+      setCurrentView("map");
+    }
+
     // Hide hero search bar; reappear automatically after 5s (landing view only)
     setSearchBarVisible(false);
     if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
@@ -598,10 +624,12 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
     const sorted = [...dbProperties].sort((a, b) => b.fairScore - a.fairScore);
     if (!mapSearchCity.trim()) return sorted;
     const q = mapSearchCity.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
-    return sorted.filter(p => {
+    const filtered = sorted.filter(p => {
       const c = p.city.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
       return c.includes(q) || q.includes(c);
     });
+    // Fall back to all properties when no city match (avoids a blank sidebar)
+    return filtered.length > 0 ? filtered : sorted;
   }, [dbProperties, mapSearchCity]);
 
   /* ── Auto-scroll sidebar card into view when marker is clicked ── */
@@ -1179,130 +1207,136 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
     }
 
     return (
-      <div className="map-view-outer" style={{ fontFamily: "var(--font-body)", height: "100vh", background: "var(--c-bg)", color: "var(--c-text)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div style={{ fontFamily: "var(--font-body)", height: "100vh", background: "var(--c-bg)", color: "var(--c-text)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
         <style>{STYLE_TAG}</style>
         <NavBar currentView={currentView} setCurrentView={setCurrentView} sessionUser={sessionUser} onOpenAuth={() => setShowAuthModal(true)} />
 
-        <div className="map-view-grid" style={{ display: "grid", gridTemplateColumns: "1fr 390px", flex: 1, overflow: "hidden" }}>
+        {/* ── Fullscreen map container — sidebar floats on top ── */}
+        <div style={{ position: "relative", flex: 1, overflow: "hidden" }}>
 
-          {/* ── LEFT: Full interactive Map3D ── */}
-          <div style={{ position: "relative", overflow: "hidden" }}>
-            <Map3D
-              fullscreen
-              ref={mapRef}
-              properties={dbProperties}
-              onPropertySelect={(id) => setSelectedPropertyId(id)}
-            />
+          {/* Map fills the entire container */}
+          <Map3D
+            fullscreen
+            ref={mapRef}
+            properties={dbProperties}
+            onPropertySelect={(id) => setSelectedPropertyId(id)}
+            initialCenter={mapInitialCenter}
+            initialZoom={mapInitialZoom}
+          />
 
-            {/* ── Search overlay — same pill design as landing hero ── */}
-            <div className="map-search-overlay">
+          {/* ── Search pill — top center ── */}
+          <div className="map-search-overlay">
 
-              {/* Dropdown (opens downward on map view) */}
-              {isFocused && searchResults.length > 0 && (
-                <div style={{
-                  position: "absolute",
-                  top: "calc(100% + 8px)", left: 0, right: 0,
-                  background: "rgba(8,12,24,0.97)",
-                  backdropFilter: "blur(24px) saturate(1.8)",
-                  WebkitBackdropFilter: "blur(24px) saturate(1.8)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 16,
-                  boxShadow: "0 24px 48px rgba(0,0,0,0.55)",
-                  overflow: "hidden",
-                  animation: "dropdownIn 0.2s cubic-bezier(0.16,1,0.3,1)",
-                  zIndex: 30,
-                }}>
-                  {searchResults.map((feature, i) => {
-                    const typeLabel = ADDR_TYPE[feature.properties.type] ?? feature.properties.type;
-                    return (
-                      <button
-                        key={i}
-                        onMouseDown={e => e.preventDefault()}
-                        onClick={() => handleSelect(feature)}
-                        onMouseEnter={() => setHighlightedIndex(i)}
-                        onMouseLeave={() => setHighlightedIndex(-1)}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 12,
-                          width: "100%", padding: "11px 16px",
-                          background: highlightedIndex === i ? "rgba(37,99,235,0.14)" : "transparent",
-                          border: "none",
-                          borderBottom: i < searchResults.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
-                          cursor: "pointer", textAlign: "left",
-                          transition: "background 0.1s ease",
-                        }}
-                      >
-                        <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: "rgba(37,99,235,0.14)", border: "1px solid rgba(37,99,235,0.28)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <svg width="10" height="13" viewBox="0 0 10 13" fill="none">
-                            <path d="M5 0C2.24 0 0 2.24 0 5c0 3.75 5 8 5 8s5-4.25 5-8C10 2.24 7.76 0 5 0z" fill="rgba(37,99,235,0.25)" stroke="#2563EB" strokeWidth="1.2" strokeLinejoin="round" />
-                            <circle cx="5" cy="5" r="1.8" fill="#2563EB" />
-                          </svg>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--c-text)", fontFamily: "var(--font-body)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {feature.properties.label}
-                          </div>
-                          {feature.properties.context && (
-                            <div style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 1, fontFamily: "var(--font-body)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {feature.properties.context}
-                            </div>
-                          )}
-                        </div>
-                        <span style={{ fontSize: 10, fontWeight: 600, flexShrink: 0, padding: "2px 7px", borderRadius: 5, background: "rgba(255,255,255,0.06)", color: "var(--c-text-dim)", fontFamily: "var(--font-body)" }}>
-                          {typeLabel}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Search pill */}
+            {/* Dropdown */}
+            {isFocused && searchResults.length > 0 && (
               <div style={{
-                display: "flex", alignItems: "center",
-                background: "rgba(8,12,24,0.90)",
-                backdropFilter: "blur(20px) saturate(1.8)",
-                WebkitBackdropFilter: "blur(20px) saturate(1.8)",
-                borderRadius: 99, padding: "6px 6px 6px 18px",
-                border: isFocused ? "1px solid rgba(255,255,255,0.28)" : "1px solid rgba(255,255,255,0.14)",
-                boxShadow: "0 16px 40px rgba(0,0,0,0.5)",
-                transition: "border 0.2s ease",
+                position: "absolute",
+                top: "calc(100% + 8px)", left: 0, right: 0,
+                background: "rgba(8,12,24,0.97)",
+                backdropFilter: "blur(24px) saturate(1.8)",
+                WebkitBackdropFilter: "blur(24px) saturate(1.8)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 16,
+                boxShadow: "0 24px 48px rgba(0,0,0,0.55)",
+                overflow: "hidden",
+                animation: "dropdownIn 0.2s cubic-bezier(0.16,1,0.3,1)",
+                zIndex: 30,
               }}>
-                {isSearching
-                  ? <div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.15)", borderTopColor: "var(--c-gold)", animation: "spin 0.7s linear infinite", flexShrink: 0, marginRight: 8 }} />
-                  : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: 8 }}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
-                }
-                <input
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onFocus={() => setIsFocused(true)}
-                  onBlur={() => setTimeout(() => setIsFocused(false), 150)}
-                  placeholder="Ville, quartier, code postal..."
-                  style={{ flex: 1, background: "transparent", border: "none", color: "#fff", fontSize: 13, outline: "none", fontFamily: "var(--font-body)", caretColor: "var(--c-gold)", minWidth: 0 }}
-                />
-                {searchQuery && (
-                  <button onClick={() => { setSearchQuery(""); setSearchResults([]); setMapSearchCity(""); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 16, cursor: "pointer", padding: "0 6px", lineHeight: 1 }}>×</button>
-                )}
-                <button
-                  onClick={() => { const t = highlightedIndex >= 0 ? searchResults[highlightedIndex] : searchResults[0]; if (t) handleSelect(t); }}
-                  style={{ padding: "10px 18px", background: "var(--c-blue)", border: "none", color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-body)", borderRadius: 99, transition: "background 0.2s ease", flexShrink: 0, whiteSpace: "nowrap" }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "#1D4ED8"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "var(--c-blue)"; }}
-                >
-                  Rechercher
-                </button>
+                {searchResults.map((feature, i) => {
+                  const typeLabel = ADDR_TYPE[feature.properties.type] ?? feature.properties.type;
+                  return (
+                    <button
+                      key={i}
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => handleSelect(feature)}
+                      onMouseEnter={() => setHighlightedIndex(i)}
+                      onMouseLeave={() => setHighlightedIndex(-1)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        width: "100%", padding: "11px 16px",
+                        background: highlightedIndex === i ? "rgba(37,99,235,0.14)" : "transparent",
+                        border: "none",
+                        borderBottom: i < searchResults.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
+                        cursor: "pointer", textAlign: "left",
+                        transition: "background 0.1s ease",
+                      }}
+                    >
+                      <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: "rgba(37,99,235,0.14)", border: "1px solid rgba(37,99,235,0.28)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <svg width="10" height="13" viewBox="0 0 10 13" fill="none">
+                          <path d="M5 0C2.24 0 0 2.24 0 5c0 3.75 5 8 5 8s5-4.25 5-8C10 2.24 7.76 0 5 0z" fill="rgba(37,99,235,0.25)" stroke="#2563EB" strokeWidth="1.2" strokeLinejoin="round" />
+                          <circle cx="5" cy="5" r="1.8" fill="#2563EB" />
+                        </svg>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--c-text)", fontFamily: "var(--font-body)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {feature.properties.label}
+                        </div>
+                        {feature.properties.context && (
+                          <div style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 1, fontFamily: "var(--font-body)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {feature.properties.context}
+                          </div>
+                        )}
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 600, flexShrink: 0, padding: "2px 7px", borderRadius: 5, background: "rgba(255,255,255,0.06)", color: "var(--c-text-dim)", fontFamily: "var(--font-body)" }}>
+                        {typeLabel}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
+            )}
+
+            {/* Pill */}
+            <div style={{
+              display: "flex", alignItems: "center",
+              background: "rgba(8,12,24,0.90)",
+              backdropFilter: "blur(20px) saturate(1.8)",
+              WebkitBackdropFilter: "blur(20px) saturate(1.8)",
+              borderRadius: 99, padding: "6px 6px 6px 18px",
+              border: isFocused ? "1px solid rgba(255,255,255,0.28)" : "1px solid rgba(255,255,255,0.14)",
+              boxShadow: "0 16px 40px rgba(0,0,0,0.5)",
+              transition: "border 0.2s ease",
+            }}>
+              {isSearching
+                ? <div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.15)", borderTopColor: "var(--c-gold)", animation: "spin 0.7s linear infinite", flexShrink: 0, marginRight: 8 }} />
+                : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: 8 }}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+              }
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setTimeout(() => setIsFocused(false), 150)}
+                placeholder="Ville, quartier, code postal..."
+                style={{ flex: 1, background: "transparent", border: "none", color: "#fff", fontSize: 13, outline: "none", fontFamily: "var(--font-body)", caretColor: "var(--c-gold)", minWidth: 0 }}
+              />
+              {searchQuery && (
+                <button onClick={() => { setSearchQuery(""); setSearchResults([]); setMapSearchCity(""); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 16, cursor: "pointer", padding: "0 6px", lineHeight: 1 }}>×</button>
+              )}
+              <button
+                onClick={() => { const t = highlightedIndex >= 0 ? searchResults[highlightedIndex] : searchResults[0]; if (t) handleSelect(t); }}
+                style={{ padding: "10px 18px", background: "var(--c-blue)", border: "none", color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "var(--font-body)", borderRadius: 99, transition: "background 0.2s ease", flexShrink: 0, whiteSpace: "nowrap" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#1D4ED8"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "var(--c-blue)"; }}
+              >
+                Rechercher
+              </button>
             </div>
           </div>
 
-          {/* ── RIGHT: Listings sidebar ── */}
-          <div
-            className="map-sidebar"
-            ref={sidebarRef}
-            style={{ background: "var(--c-bg-elevated)", borderLeft: "1px solid var(--c-border)", display: "flex", flexDirection: "column", overflow: "hidden" }}
-          >
-            {/* Sidebar header */}
-            <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid var(--c-border)", flexShrink: 0 }}>
+          {/* ── Floating glassmorphism sidebar — above the map ── */}
+          <div className="map-float-sidebar" ref={sidebarRef}>
+
+            {/* Sticky header */}
+            <div style={{
+              padding: "16px 18px 12px",
+              borderBottom: "1px solid rgba(255,255,255,0.07)",
+              position: "sticky", top: 0, zIndex: 1,
+              background: "rgba(10,15,30,0.75)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              borderRadius: "28px 28px 0 0",
+            }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <div>
                   <p style={{ fontSize: 13, fontWeight: 700, color: "var(--c-text)", fontFamily: "var(--font-body)", margin: 0 }}>
@@ -1317,9 +1351,9 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
                 {mapSearchCity && (
                   <button
                     onClick={() => setMapSearchCity("")}
-                    style={{ fontSize: 11, color: "var(--c-text-dim)", background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "var(--font-body)", whiteSpace: "nowrap", transition: "border-color 0.2s ease" }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--c-border)"; }}
+                    style={{ fontSize: 10, color: "var(--c-text-dim)", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "var(--font-body)", whiteSpace: "nowrap", transition: "border-color 0.18s ease" }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.22)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; }}
                   >
                     Tout afficher ×
                   </button>
@@ -1327,22 +1361,22 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
               </div>
             </div>
 
-            {/* Cards list */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "12px 12px 20px" }}>
+            {/* Cards */}
+            <div style={{ padding: "10px 10px 28px" }}>
 
               {/* Empty state */}
               {mapSidebarProps.length === 0 && (
                 <div style={{ textAlign: "center", padding: "48px 16px" }}>
-                  <div style={{ fontSize: 36, marginBottom: 16 }}>🗺️</div>
+                  <div style={{ fontSize: 36, marginBottom: 14 }}>🗺️</div>
                   <p style={{ fontSize: 14, fontWeight: 700, color: "var(--c-text)", fontFamily: "var(--font-body)", marginBottom: 8 }}>
                     Aucun bien ne correspond à votre recherche.
                   </p>
-                  <p style={{ fontSize: 12, color: "var(--c-text-muted)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+                  <p style={{ fontSize: 12, color: "var(--c-text-muted)", fontFamily: "var(--font-body)", lineHeight: 1.6, marginBottom: 16 }}>
                     Essayez d'élargir votre zone ou votre budget.
                   </p>
                   <button
                     onClick={() => setMapSearchCity("")}
-                    style={{ marginTop: 16, padding: "8px 18px", borderRadius: 8, background: "var(--c-blue-glow)", border: "1px solid rgba(37,99,235,0.3)", color: "var(--c-blue)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-body)", transition: "background 0.2s ease" }}
+                    style={{ padding: "8px 18px", borderRadius: 8, background: "var(--c-blue-glow)", border: "1px solid rgba(37,99,235,0.3)", color: "var(--c-blue)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-body)", transition: "background 0.2s ease" }}
                     onMouseEnter={e => { e.currentTarget.style.background = "rgba(37,99,235,0.2)"; }}
                     onMouseLeave={e => { e.currentTarget.style.background = "var(--c-blue-glow)"; }}
                   >
@@ -1351,73 +1385,97 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
                 </div>
               )}
 
-              {/* Property cards */}
+              {/* Property cards — compact horizontal, matches hero button aesthetic */}
               {mapSidebarProps.map(p => {
-                const typeMatch   = p.title.match(/^(Appartement|Maison|Studio|Terrain|Villa|Loft)/i);
-                const type        = typeMatch?.[1] ?? "Bien";
-                const typeEmoji   = type === "Maison" ? "⌂" : type === "Terrain" ? "▦" : "⊞";
-                const isActive    = selectedPropertyId === p.id;
-                const scoreColor  = p.fairScore >= 80 ? "var(--c-emerald)" : p.fairScore >= 60 ? "var(--c-gold)" : "var(--c-red)";
-                const scoreLabel  = p.fairScore >= 80 ? "Prix juste" : p.fairScore >= 60 ? "À négocier" : "Surévalué";
-                const thumbBg     = p.fairScore > 70
-                  ? "linear-gradient(135deg,#0B2E1F,var(--c-bg-card))"
-                  : p.fairScore > 50 ? "linear-gradient(135deg,#2D2410,var(--c-bg-card))"
-                  : "linear-gradient(135deg,#2D1010,var(--c-bg-card))";
+                const typeMatch  = p.title.match(/^(Appartement|Maison|Studio|Terrain|Villa|Loft)/i);
+                const type       = typeMatch?.[1] ?? "Bien";
+                const typeEmoji  = type === "Maison" ? "⌂" : type === "Terrain" ? "▦" : "⊞";
+                const isActive   = selectedPropertyId === p.id;
+                const scoreColor = p.fairScore >= 80 ? "var(--c-emerald)" : p.fairScore >= 60 ? "var(--c-gold)" : "var(--c-red)";
+                const scoreLabel = p.fairScore >= 80 ? "Prix juste" : p.fairScore >= 60 ? "À négocier" : "Surévalué";
 
                 return (
                   <div
                     key={p.id}
                     data-property-id={p.id}
-                    className={`map-listing-card${isActive ? " active" : ""}`}
                     onClick={() => handleCardClick(p)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: 14,
+                      marginBottom: 8,
+                      borderRadius: 18,
+                      cursor: "pointer",
+                      background: isActive ? "rgba(200,165,92,0.1)" : "rgba(255,255,255,0.04)",
+                      backdropFilter: "blur(12px)",
+                      WebkitBackdropFilter: "blur(12px)",
+                      border: `1px solid ${isActive ? "rgba(200,165,92,0.4)" : "rgba(255,255,255,0.06)"}`,
+                      boxShadow: isActive ? "0 0 20px rgba(200,165,92,0.15), 0 0 0 1px rgba(200,165,92,0.2)" : "none",
+                      transition: "border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.2s cubic-bezier(0.16,1,0.3,1)",
+                    }}
+                    onMouseEnter={e => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = "rgba(255,255,255,0.07)";
+                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)";
+                        e.currentTarget.style.transform = "translateY(-1px)";
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
+                        e.currentTarget.style.transform = "translateY(0)";
+                      }
+                    }}
                   >
-                    {/* Cover image */}
-                    <div style={{ height: 130, position: "relative", overflow: "hidden", background: thumbBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, color: "rgba(255,255,255,0.25)" }}>
+                    {/* Square thumbnail */}
+                    <div style={{
+                      width: 52, height: 52, borderRadius: 12, overflow: "hidden",
+                      flexShrink: 0, background: "rgba(255,255,255,0.06)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 22, color: "rgba(255,255,255,0.3)",
+                    }}>
                       {p.images[0]
                         // eslint-disable-next-line @next/next/no-img-element
-                        ? <img src={p.images[0]} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                        ? <img src={p.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         : typeEmoji
                       }
-                      {/* Gradient overlay */}
-                      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top,rgba(11,17,32,0.45) 0%,transparent 55%)", pointerEvents: "none" }} />
-                      {/* DPE badge */}
-                      <span style={{ position: "absolute", top: 8, right: 8, background: DPE_CLR[p.dpe] ?? "#4A5568", color: "#fff", fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 4, letterSpacing: "0.05em", fontFamily: "var(--font-body)" }}>
-                        DPE {p.dpe}
-                      </span>
-                      {/* FairScore badge */}
-                      {p.fairScore > 0 && (
-                        <span style={{ position: "absolute", top: 8, left: 8, background: "rgba(0,0,0,0.65)", color: scoreColor, fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 4, border: `1px solid ${scoreColor}40`, letterSpacing: "0.03em", fontFamily: "var(--font-body)" }}>
-                          {p.fairScore}/100 — {scoreLabel}
-                        </span>
-                      )}
-                      {/* Source badge */}
-                      <span style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(30,58,138,0.85)", color: "#fff", fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 4, letterSpacing: "0.04em", fontFamily: "var(--font-body)" }}>
-                        {p.isBoosted ? "★ PREMIUM" : "Jumo Immo"}
-                      </span>
                     </div>
 
-                    {/* Card body */}
-                    <div style={{ padding: "11px 13px 13px" }}>
-                      <div style={{ fontSize: 17, fontWeight: 800, fontFamily: "var(--font-display)", color: isActive ? "var(--c-gold)" : "var(--c-text)", letterSpacing: "-0.02em", lineHeight: 1, marginBottom: 4, transition: "color 0.18s ease" }}>
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "var(--font-display)", color: isActive ? "var(--c-gold)" : "var(--c-text)", letterSpacing: "-0.02em", lineHeight: 1, marginBottom: 3, transition: "color 0.18s ease" }}>
                         {p.price.toLocaleString("fr-FR")} €
                       </div>
-                      <div style={{ fontSize: 11, color: "var(--c-text-muted)", fontFamily: "var(--font-body)", marginBottom: 7 }}>
-                        {type} · {p.city} · {p.surface} m²
-                        {p.rooms > 0 ? ` · ${p.rooms} pièce${p.rooms > 1 ? "s" : ""}` : ""}
+                      <div style={{ fontSize: 11, color: "var(--c-text-muted)", fontFamily: "var(--font-body)", marginBottom: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {type} · {p.city} · {p.surface} m²{p.rooms > 0 ? ` · ${p.rooms}p` : ""}
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: `1px solid ${isActive ? "rgba(200,165,92,0.2)" : "var(--c-border)"}` }}>
-                        <span style={{ fontSize: 11, color: "var(--c-text-dim)", fontFamily: "var(--font-body)" }}>
-                          {Math.round(p.price / p.surface).toLocaleString("fr-FR")} €/m²
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <span style={{ background: DPE_CLR[p.dpe] ?? "#4A5568", color: "#fff", fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 3, letterSpacing: "0.05em", fontFamily: "var(--font-body)", flexShrink: 0 }}>
+                          {p.dpe}
                         </span>
-                        <button
-                          onClick={e => { e.stopPropagation(); router.push(`/annonces/${p.id}`); }}
-                          style={{ fontSize: 11, fontWeight: 600, color: isActive ? "var(--c-gold)" : "var(--c-blue)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-body)", padding: 0, letterSpacing: "0.02em", transition: "color 0.18s ease" }}
-                          onMouseEnter={e => { e.currentTarget.style.textDecoration = "underline"; }}
-                          onMouseLeave={e => { e.currentTarget.style.textDecoration = "none"; }}
-                        >
-                          Voir →
-                        </button>
+                        {p.fairScore > 0 && (
+                          <span style={{ color: scoreColor, fontSize: 9, fontWeight: 600, fontFamily: "var(--font-body)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {p.fairScore}/100 · {scoreLabel}
+                          </span>
+                        )}
                       </div>
+                    </div>
+
+                    {/* Right column */}
+                    <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                      <span style={{ fontSize: 10, color: "var(--c-text-dim)", fontFamily: "var(--font-body)", whiteSpace: "nowrap" }}>
+                        {Math.round(p.price / p.surface).toLocaleString("fr-FR")} €/m²
+                      </span>
+                      <button
+                        onClick={e => { e.stopPropagation(); router.push(`/annonces/${p.id}`); }}
+                        style={{ fontSize: 11, fontWeight: 600, color: isActive ? "var(--c-gold)" : "var(--c-blue)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-body)", padding: 0, letterSpacing: "0.02em", transition: "color 0.18s ease", whiteSpace: "nowrap" }}
+                        onMouseEnter={e => { e.currentTarget.style.textDecoration = "underline"; }}
+                        onMouseLeave={e => { e.currentTarget.style.textDecoration = "none"; }}
+                      >
+                        Voir →
+                      </button>
                     </div>
                   </div>
                 );

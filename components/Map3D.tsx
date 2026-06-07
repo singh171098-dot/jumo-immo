@@ -344,6 +344,10 @@ interface Map3DProps {
   properties?: MapPropertyInput[];
   /** Called when a property marker is clicked — passes the property id */
   onPropertySelect?: (id: string) => void;
+  /** Starting map center — read once at mount, used when view switches programmatically */
+  initialCenter?: [number, number];
+  /** Starting zoom level — read once at mount */
+  initialZoom?: number;
 }
 export interface MapHandle {
   flyTo: (lng: number, lat: number) => void;
@@ -353,7 +357,7 @@ export interface MapHandle {
 
 /* ── Map3D ───────────────────────────────────────────────────────────────── */
 const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
-  { fullscreen = false, properties = [], onPropertySelect },
+  { fullscreen = false, properties = [], onPropertySelect, initialCenter, initialZoom },
   ref,
 ) {
   const router    = useRouter();
@@ -398,8 +402,8 @@ const Map3D = forwardRef<MapHandle, Map3DProps>(function Map3D(
     const m = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/standard',
-      center: [2.3364, 48.8602],
-      zoom: 5.5,
+      center: initialCenter ?? [2.3364, 48.8602],
+      zoom:   initialZoom  ?? 5.5,
       pitch: 45,
       bearing: -10,
       antialias: true,
