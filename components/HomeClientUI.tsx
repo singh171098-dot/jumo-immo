@@ -291,6 +291,17 @@ const STYLE_TAG = `
   display: none;
 }
 
+/* ── Landing carousel: hide horizontal scrollbar ────────────────────── */
+.hide-horizontal-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-horizontal-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── Map listing cards ──────────────────────────────────────────────── */
 .map-listing-card {
   background: rgba(255,255,255,0.035);
@@ -878,7 +889,7 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
 
             {/* RIGHT — Property preview cards */}
             {listings.length > 0 && (
-              <div className="hero-cards-col" style={{
+              <div className="hero-cards-col hide-horizontal-scroll" style={{
                 display: "flex", flexDirection: "column", gap: 10,
                 flexShrink: 0, pointerEvents: "auto",
               }}>
