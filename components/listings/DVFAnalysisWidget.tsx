@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { MapPin, AlertCircle, SearchX, BadgeCheck } from "lucide-react";
 import { extractPostalCode } from "../../lib/utils/postalCode";
-import { formatPricePerM2 } from "../../lib/utils/formatters";
+import { formatPrice, formatPricePerM2 } from "../../lib/utils/formatters";
 import FairScoreBadge from "./FairScoreBadge";
 import type { DVFEstimationData } from "../../lib/dvf";
 
@@ -121,6 +121,14 @@ export default function DVFAnalysisWidget({
     ? `−${formatPricePerM2(Math.abs(difference))} en dessous du marché`
     : "Aligné avec le marché";
   const diffColor = difference > 0 ? "text-red-400" : difference < 0 ? "text-emerald-400" : "text-gray-400";
+  const diffBg = difference > 0 ? "bg-red-500/10" : difference < 0 ? "bg-emerald-500/10" : "bg-white/5";
+
+  const totalDifference = Math.round(difference * listingSurface);
+  const totalDiffLabel = totalDifference > 0
+    ? `Soit ${formatPrice(totalDifference)} au-dessus du prix du marché`
+    : totalDifference < 0
+    ? `Soit ${formatPrice(Math.abs(totalDifference))} d'économie potentielle`
+    : null;
 
   return (
     <div className={CARD_CLASS}>
@@ -143,7 +151,16 @@ export default function DVFAnalysisWidget({
             <p className="text-lg font-bold text-blue-400">{formatPricePerM2(dvfAvgPricePerM2)}</p>
           </div>
         </div>
-        <p className={`text-xs font-semibold ${diffColor}`}>{diffLabel}</p>
+        <p className="text-xs text-gray-500">
+          Prix moyen DVF pour ce secteur : {formatPricePerM2(dvfAvgPricePerM2)}
+        </p>
+
+        <div className={`rounded-xl px-3.5 py-2.5 ${diffBg}`}>
+          <p className={`text-xs font-semibold ${diffColor}`}>{diffLabel}</p>
+          {totalDiffLabel && (
+            <p className={`text-sm font-bold mt-0.5 ${diffColor}`}>{totalDiffLabel}</p>
+          )}
+        </div>
 
         {/* Section C — Transaction count */}
         <p className="text-xs text-gray-500">
