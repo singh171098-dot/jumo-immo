@@ -57,6 +57,10 @@ export default function DVFAnalysisWidget({
     return extractPostalCode(listingCity);
   }, [listingPostalCode, listingCity]);
 
+  // TEMPORARY debug logs — keep until postal-code resolution is verified in prod.
+  console.log('[DVFAnalysisWidget] Props:', { listingPrice, listingSurface, listingCity, listingPostalCode });
+  console.log('[DVFAnalysisWidget] Resolved postal code:', resolvedPostalCode);
+
   const [state, setState] = useState<FetchState | null>(null);
 
   useEffect(() => {
