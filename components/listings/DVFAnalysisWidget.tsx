@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { MapPin, AlertCircle, SearchX, BadgeCheck } from "lucide-react";
-import { extractPostalCode } from "../../lib/utils/postalCode";
 import { formatPrice, formatPricePerM2 } from "../../lib/utils/formatters";
 import FairScoreBadge from "./FairScoreBadge";
 import type { DVFEstimationData } from "../../lib/dvf";
@@ -11,15 +10,17 @@ export interface DVFAnalysisWidgetProps {
   listingPrice: number;
   /** Living surface of the listing, in m². */
   listingSurface: number;
-  /** Raw city string as stored on the listing, e.g. "Paris 19ème". */
+  /** Raw city string as stored on the listing, e.g. "Paris 19ème arrondissement". */
   listingCity: string;
   /** Postal code if already known — used as-is when it's a valid 5-digit code. */
   listingPostalCode?: string;
+  /** Street address, if known — combined with the postal code for the resolver. */
+  listingAddress?: string;
 }
 
 type FetchState =
-  | { status: "error"; postalCode: string }
-  | { status: "success"; data: DVFEstimationData; postalCode: string };
+  | { status: "error"; locationQuery: string }
+  | { status: "success"; data: DVFEstimationData; locationQuery: string };
 
 const CARD_CLASS = "rounded-2xl bg-white/[0.04] backdrop-blur-xl border border-white/10 p-6";
 
@@ -49,49 +50,76 @@ export default function DVFAnalysisWidget({
   listingSurface,
   listingCity,
   listingPostalCode,
+  listingAddress,
 }: DVFAnalysisWidgetProps) {
   const hasSurface = listingSurface > 0;
 
-  const resolvedPostalCode = useMemo(() => {
-    if (listingPostalCode && /^\d{5}$/.test(listingPostalCode)) return listingPostalCode;
-    return extractPostalCode(listingCity);
-  }, [listingPostalCode, listingCity]);
+  // Build the richest possible location string for the resolver.
+  // Priority: use postalCode directly if valid, otherwise combine fields.
+  const locationQuery = useMemo(() => {
+    if (listingPostalCode && /^\d{5}$/.test(listingPostalCode.trim())) {
+      return listingPostalCode.trim();
+    }
+    if (listingAddress && listingPostalCode) {
+      return `${listingAddress}, ${listingPostalCode}`;
+    }
+    if (listingPostalCode) {
+      return `${listingCity} ${listingPostalCode}`;
+    }
+    return listingCity;
+  }, [listingPostalCode, listingAddress, listingCity]);
 
-  // TEMPORARY debug logs — keep until postal-code resolution is verified in prod.
-  console.log('[DVFAnalysisWidget] Props:', { listingPrice, listingSurface, listingCity, listingPostalCode });
-  console.log('[DVFAnalysisWidget] Resolved postal code:', resolvedPostalCode);
+  // TEMPORARY debug logs — keep until location resolution is verified in prod.
+  console.log('[DVFAnalysisWidget] Props:', {
+    listingPrice,
+    listingSurface,
+    listingCity,
+    listingPostalCode,
+    listingAddress,
+  });
+  console.log('[DVFAnalysisWidget] Location query sent to API:', locationQuery);
 
   const [state, setState] = useState<FetchState | null>(null);
 
   useEffect(() => {
-    if (!hasSurface || !resolvedPostalCode) return;
+    if (!hasSurface || !locationQuery.trim()) return;
 
     let cancelled = false;
 
-    fetch(`/api/dvf?postalCode=${resolvedPostalCode}`)
-      .then(res => {
-        if (!res.ok) throw new Error("DVF request failed");
-        return res.json() as Promise<DVFEstimationData>;
-      })
-      .then(data => {
-        if (!cancelled) setState({ status: "success", data, postalCode: resolvedPostalCode });
-      })
-      .catch(() => {
-        if (!cancelled) setState({ status: "error", postalCode: resolvedPostalCode });
-      });
+    const run = async () => {
+      try {
+        const response = await fetch(`/api/dvf?location=${encodeURIComponent(locationQuery)}`);
+        if (!response.ok) throw new Error("DVF request failed");
 
+        const json = (await response.json()) as DVFEstimationData;
+        console.log('[DVFAnalysisWidget] API Response:', {
+          hasData: json.hasData,
+          resolvedPostalCode: json.postalCode,
+          resolverSource: json.resolverSource,
+          confidence: json.confidence,
+          transactionCount: json.transactionCount,
+          averagePricePerM2: json.averagePricePerM2,
+        });
+
+        if (!cancelled) setState({ status: "success", data: json, locationQuery });
+      } catch {
+        if (!cancelled) setState({ status: "error", locationQuery });
+      }
+    };
+
+    run();
     return () => { cancelled = true; };
-  }, [hasSurface, resolvedPostalCode]);
+  }, [hasSurface, locationQuery]);
 
-  // Treat results from a previous postal code as stale — render the loading
-  // state until the in-flight fetch for the current postal code resolves.
-  const current = state && state.postalCode === resolvedPostalCode ? state : null;
+  // Treat results from a previous query as stale — render the loading state
+  // until the in-flight fetch for the current location query resolves.
+  const current = state && state.locationQuery === locationQuery ? state : null;
 
   if (!hasSurface) {
     return <FallbackCard icon={<AlertCircle size={22} className="text-gray-500" />} message="Surface manquante pour l'analyse" />;
   }
 
-  if (!resolvedPostalCode) {
+  if (!locationQuery.trim()) {
     return <FallbackCard icon={<MapPin size={22} className="text-gray-500" />} message="Localisation insuffisante pour l'analyse DVF" />;
   }
 
@@ -170,6 +198,18 @@ export default function DVFAnalysisWidget({
         <p className="text-xs text-gray-500">
           Basé sur {new Intl.NumberFormat("fr-FR").format(data.transactionCount)} transactions réelles dans ce secteur
         </p>
+
+        {/* Resolver confidence indicators */}
+        {data.confidence === "low" && (
+          <p className="text-xs text-amber-500 mt-1">
+            ⚠ Analyse basée sur les données départementales (code postal non résolu)
+          </p>
+        )}
+        {data.resolverSource === "geo-api" && (
+          <p className="text-xs text-gray-400 mt-1">
+            Localisation résolue via API Adresse officielle
+          </p>
+        )}
 
         {/* Section D — Data source badge */}
         <span className="inline-flex items-center gap-1.5 text-[9px] font-bold px-2.5 py-1 rounded-full border bg-emerald-500/10 border-emerald-500/20 text-emerald-400 uppercase tracking-wide">

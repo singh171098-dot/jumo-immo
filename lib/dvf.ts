@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import type { Prisma } from "@prisma/client";
+import { resolveLocationToPostalCode } from "./locationResolver";
 
 export interface DVFComparable {
   id: string;
@@ -20,128 +21,124 @@ export interface DVFTrendPoint {
 export interface DVFEstimationData {
   hasData: boolean;
   postalCode: string;
-  city?: string | null;
+  city: string;
+  department: string;
   transactionCount: number;
   averagePricePerM2: number | null;
+  dataSource: "postalCode" | "department" | null;
+  resolverSource: "direct" | "geo-api" | "db-text-search" | "department-fallback" | null;
+  confidence: "high" | "medium" | "low" | null;
   comparables: DVFComparable[];
   trend: DVFTrendPoint[];
 }
 
 const COMPARABLES_LIMIT = 5;
-// Bounds the rows pulled for the yearly trend breakdown — DVF covers ~5 years
-// per postal code, so this comfortably covers even the densest areas.
-const TREND_ROW_LIMIT = 20_000;
+const POSTAL_CODE_ROW_LIMIT = 2_000;
+const DEPARTMENT_ROW_LIMIT = 500;
 
-function emptyResult(postalCode: string, city?: string | null): DVFEstimationData {
+function emptyResult(): DVFEstimationData {
   return {
     hasData: false,
-    postalCode,
-    city: city ?? null,
+    postalCode: "",
+    city: "",
+    department: "",
     transactionCount: 0,
     averagePricePerM2: null,
+    dataSource: null,
+    resolverSource: null,
+    confidence: null,
     comparables: [],
     trend: [],
   };
 }
 
 /**
- * Fetches real DVF transaction data for a postal code (exact match), used to
- * power the estimation UI (local average €/m², comparables, yearly trend).
- *
- * `city`, when provided, narrows results with a case-insensitive match — but
- * falls back to the postal-code-only set if no rows share that city name, so
- * minor formatting differences (accents, case) never produce an empty result.
+ * Resolves a free-form location string ("Créteil", "Paris 19ème
+ * arrondissement", "93000 Bobigny"...) via `resolveLocationToPostalCode`,
+ * then aggregates real DVFTransaction rows for that postal code (or, for
+ * low-confidence department-level matches, the whole department) into the
+ * data powering the estimation UI: local average €/m², comparables, and
+ * yearly trend.
  */
-export async function getDvfEstimationData(
-  postalCode: string,
-  city?: string,
-): Promise<DVFEstimationData> {
-  const trimmedPostalCode = postalCode.trim();
-  const normalizedCity = city?.trim() || undefined;
+export async function getDVFEstimationData(locationString: string): Promise<DVFEstimationData> {
+  const resolved = await resolveLocationToPostalCode(locationString);
+  if (!resolved) return emptyResult();
 
-  if (!trimmedPostalCode) {
-    return emptyResult(trimmedPostalCode, normalizedCity);
-  }
+  const dataSource: "postalCode" | "department" = resolved.confidence === "low" ? "department" : "postalCode";
 
-  const baseWhere: Prisma.DVFTransactionWhereInput = {
-    postalCode: trimmedPostalCode,
-    price: { gt: 0 },
-    surface: { gt: 0 },
-  };
+  // DVFTransaction has no `department` column — the department-level
+  // fallback matches on the postal code prefix instead.
+  const where: Prisma.DVFTransactionWhereInput = dataSource === "postalCode"
+    ? { postalCode: resolved.postalCode, surface: { gt: 0 }, price: { gt: 0 } }
+    : { postalCode: { startsWith: resolved.department }, surface: { gt: 0 }, price: { gt: 0 } };
 
-  let where = baseWhere;
-  if (normalizedCity) {
-    const cityWhere: Prisma.DVFTransactionWhereInput = {
-      ...baseWhere,
-      city: { equals: normalizedCity, mode: "insensitive" },
-    };
-    const cityMatchCount = await prisma.dVFTransaction.count({ where: cityWhere });
-    if (cityMatchCount > 0) where = cityWhere;
-  }
+  const take = dataSource === "postalCode" ? POSTAL_CODE_ROW_LIMIT : DEPARTMENT_ROW_LIMIT;
 
-  const [aggregate, comparableRows, trendRows] = await Promise.all([
-    prisma.dVFTransaction.aggregate({
-      where,
-      _sum: { price: true, surface: true },
-      _count: true,
-    }),
+  const [transactionCount, transactions] = await Promise.all([
+    prisma.dVFTransaction.count({ where }),
     prisma.dVFTransaction.findMany({
       where,
+      select: { id: true, date: true, price: true, surface: true, city: true, propertyType: true, postalCode: true },
       orderBy: { date: "desc" },
-      take: COMPARABLES_LIMIT,
-      select: { id: true, date: true, price: true, surface: true, city: true, propertyType: true },
-    }),
-    prisma.dVFTransaction.findMany({
-      where,
-      orderBy: { date: "desc" },
-      take: TREND_ROW_LIMIT,
-      select: { date: true, price: true, surface: true },
+      take,
     }),
   ]);
 
-  const transactionCount = aggregate._count;
   if (transactionCount === 0) {
-    return emptyResult(trimmedPostalCode, normalizedCity);
+    return {
+      ...emptyResult(),
+      postalCode: resolved.postalCode,
+      city: resolved.city,
+      department: resolved.department,
+      dataSource,
+      resolverSource: resolved.source,
+      confidence: resolved.confidence,
+    };
   }
 
-  const totalPrice = aggregate._sum.price ?? 0;
-  const totalSurface = aggregate._sum.surface ?? 0;
-  const averagePricePerM2 = totalSurface > 0 ? Math.round(totalPrice / totalSurface) : null;
+  const totalValue = transactions.reduce((sum, t) => sum + t.price, 0);
+  const totalSurface = transactions.reduce((sum, t) => sum + t.surface, 0);
+  const averagePricePerM2 = totalSurface > 0 ? Math.round(totalValue / totalSurface) : null;
 
-  const comparables: DVFComparable[] = comparableRows.map(row => ({
-    id: row.id,
-    date: row.date.toISOString(),
-    price: row.price,
-    surface: row.surface,
-    city: row.city,
-    propertyType: row.propertyType,
-    pricePerM2: Math.round(row.price / row.surface),
+  const comparables: DVFComparable[] = transactions.slice(0, COMPARABLES_LIMIT).map(t => ({
+    id: t.id,
+    date: t.date.toISOString().split("T")[0],
+    price: t.price,
+    surface: t.surface,
+    city: t.city,
+    propertyType: t.propertyType,
+    pricePerM2: t.surface > 0 ? Math.round(t.price / t.surface) : 0,
   }));
 
-  const yearBuckets = new Map<number, { totalPrice: number; totalSurface: number; count: number }>();
-  for (const row of trendRows) {
-    const year = row.date.getFullYear();
-    const bucket = yearBuckets.get(year) ?? { totalPrice: 0, totalSurface: 0, count: 0 };
-    bucket.totalPrice += row.price;
-    bucket.totalSurface += row.surface;
+  const trendMap = new Map<number, { totalValue: number; totalSurface: number; count: number }>();
+  for (const t of transactions) {
+    if (t.surface <= 0) continue;
+    const year = t.date.getFullYear();
+    const bucket = trendMap.get(year) ?? { totalValue: 0, totalSurface: 0, count: 0 };
+    bucket.totalValue += t.price;
+    bucket.totalSurface += t.surface;
     bucket.count += 1;
-    yearBuckets.set(year, bucket);
+    trendMap.set(year, bucket);
   }
 
-  const trend: DVFTrendPoint[] = Array.from(yearBuckets.entries())
+  const trend: DVFTrendPoint[] = Array.from(trendMap.entries())
     .map(([year, bucket]) => ({
       year,
-      averagePricePerM2: Math.round(bucket.totalPrice / bucket.totalSurface),
+      averagePricePerM2: Math.round(bucket.totalValue / bucket.totalSurface),
       transactionCount: bucket.count,
     }))
     .sort((a, b) => a.year - b.year);
 
   return {
     hasData: true,
-    postalCode: trimmedPostalCode,
-    city: comparableRows[0]?.city ?? normalizedCity ?? null,
+    postalCode: resolved.postalCode,
+    city: transactions[0]?.city ?? resolved.city,
+    department: resolved.department,
     transactionCount,
     averagePricePerM2,
+    dataSource,
+    resolverSource: resolved.source,
+    confidence: resolved.confidence,
     comparables,
     trend,
   };
