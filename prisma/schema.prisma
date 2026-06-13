@@ -280,6 +280,45 @@ model Lead {
   @@map("leads")
 }
 
+// Lead captured from the landing-page price estimation widget (OTP-verified,
+// not tied to a specific Property listing).
+model EstimationLead {
+  id          String   @id @default(cuid())
+  firstName   String
+  email       String
+  city        String
+  postalCode  String?
+  askingPrice Int?
+  surface     Int?
+  createdAt   DateTime @default(now())
+
+  @@index([email])
+  @@map("estimation_leads")
+}
+
+// Raw DVF (Données de Valeurs Foncières) transaction records, imported from
+// the Etalab "demandes de valeurs foncières" CSV export.
+model DVFTransaction {
+  id           String   @id @default(cuid())
+  mutationId   String?
+  date         DateTime
+  price        Float
+  postalCode   String
+  city         String
+  propertyType String
+  surface      Float
+  lat          Float
+  lng          Float
+  sourceKey    String   @unique
+
+  @@index([date])
+  @@index([postalCode])
+  @@index([city])
+  @@index([propertyType])
+  @@index([lat, lng])
+  @@map("dvf_transactions")
+}
+
 // ─── Legal Identity — shared by buyer and seller profiles ─────────────────────
 
 model CivilStatus {

@@ -4,6 +4,9 @@ import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import Map3D, { type MapHandle } from "./Map3D";
 import AuthModal from "./AuthModal";
+import EstimationForm from "./estimation/EstimationForm";
+import EstimationResults from "./estimation/EstimationResults";
+import type { EstimationQuery } from "./estimation/types";
 
 /* ───────────── TYPES ───────────── */
 interface AdresseFeature {
@@ -536,11 +539,13 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [isSidebarOpen,    setIsSidebarOpen]    = useState(true);
+  const [estimationQuery, setEstimationQuery] = useState<EstimationQuery | null>(null);
+  const estimationResultsRef = useRef<HTMLDivElement>(null);
 
-  // DEBUG — remove once root cause is confirmed
   useEffect(() => {
-    console.log("[SIDEBAR]", isSidebarOpen, new Error("trace").stack?.split("\n").slice(1, 5).join(" ← "));
-  }, [isSidebarOpen]);
+    if (!estimationQuery) return;
+    estimationResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [estimationQuery]);
 
   const [ref1, vis1] = useReveal();
   const [ref2, vis2] = useReveal();
@@ -885,6 +890,9 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
                   </button>
                 </div>
               </div>}
+
+              {/* Price estimation form — always visible, no scroll needed */}
+              <EstimationForm onSubmit={setEstimationQuery} />
             </div>
 
             {/* RIGHT — Property preview cards */}
@@ -1130,6 +1138,21 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
           <div style={{ height: 1, background: "linear-gradient(90deg, var(--c-border), var(--c-gold), var(--c-border))", opacity: 0.4 }} />
         </div>
 
+        {/* ── ESTIMATION RESULTS ── */}
+        {estimationQuery && (
+          <div ref={estimationResultsRef} style={{ maxWidth: 1100, margin: "0 auto", padding: "60px 32px 0" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 40, height: 1, background: "var(--c-emerald)" }} />
+              <span style={{ fontSize: 11, letterSpacing: "0.25em", textTransform: "uppercase", color: "var(--c-emerald)", fontWeight: 600 }}>Estimation</span>
+            </div>
+            <h2 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(28px, 3.5vw, 42px)", fontWeight: 800, lineHeight: 1.05, letterSpacing: "-0.03em", marginBottom: 32 }}>
+              Votre analyse de marché,{" "}
+              <span style={{ color: "var(--c-gold)", fontStyle: "italic" }}>en temps réel.</span>
+            </h2>
+            <EstimationResults query={estimationQuery} />
+          </div>
+        )}
+
         {/* ── FEATURES ── */}
         <div ref={ref1} className="features-section" style={{ maxWidth: 1100, margin: "0 auto", padding: "80px 32px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
@@ -1257,9 +1280,6 @@ export default function HomeClientUI({ dbProperties, sessionUser }: HomeClientPr
         }
       }, 450);
     }
-
-    console.log("[RENDER]", { isSidebarOpen, selectedPropertyId, currentView });
-    console.log("Sidebar cards:", mapSidebarProps.length);
 
     return (
       <div style={{ fontFamily: "var(--font-body)", height: "100vh", background: "var(--c-bg)", color: "var(--c-text)", overflow: "hidden", display: "flex", flexDirection: "column" }}>

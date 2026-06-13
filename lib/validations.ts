@@ -59,6 +59,15 @@ export const leadSchema = z.object({
   rgpdConsent: z.literal(true, { error: "Le consentement RGPD est obligatoire." }),
 });
 
+export const estimationLeadSchema = z.object({
+  firstName:   nameSchema,
+  email:       emailSchema,
+  city:        z.string().trim().min(1, "Ville requise."),
+  postalCode:  z.string().trim().regex(/^\d{5}$/).optional(),
+  askingPrice: z.number().int().positive().optional(),
+  surface:     z.number().int().positive().optional(),
+});
+
 export const sendMessageSchema = z.object({
   receiverId: z.string().min(1),
   propertyId: z.string().min(1),

@@ -612,13 +612,15 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
             <div className="hidden lg:flex flex-col gap-3">
               {isPartner ? (
                 p.externalUrl && (
-                  <button
-                    onClick={() => setShowLeadModal(true)}
+                  <a
+                    href={p.externalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="w-full py-4 bg-gradient-to-r from-[#1E3A8A] to-blue-600 hover:from-blue-800 hover:to-blue-500 active:scale-[.98] text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-900/30"
                   >
                     <ExternalLink size={17} />
                     Voir l'annonce originale
-                  </button>
+                  </a>
                 )
               ) : (
                 <>
@@ -690,13 +692,15 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
       {isPartner ? (
         p.externalUrl && (
           <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-gray-950/95 backdrop-blur-xl border-t border-white/10 px-4 py-3">
-            <button
-              onClick={() => setShowLeadModal(true)}
+            <a
+              href={p.externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex w-full py-3.5 bg-gradient-to-r from-[#1E3A8A] to-blue-600 hover:from-blue-800 hover:to-blue-500 text-white font-bold rounded-xl transition-all items-center justify-center gap-2 text-sm"
             >
               <ExternalLink size={16} />
               Voir l'annonce originale
-            </button>
+            </a>
           </div>
         )
       ) : (
@@ -731,9 +735,8 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
         <LeadCaptureModal
           isOpen={showLeadModal}
           onClose={() => setShowLeadModal(false)}
-          onSuccess={() => { setIsUnlocked(true); setShowLeadModal(false); }}
+          onSuccess={() => setIsUnlocked(true)}
           propertyId={p.id}
-          externalUrl={p.externalUrl}
           propertyTitle={p.title}
         />
       )}

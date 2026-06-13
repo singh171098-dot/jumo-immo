@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# large local data dumps
+france_live_data.csv
+
+# local Claude Code state
+.claude/

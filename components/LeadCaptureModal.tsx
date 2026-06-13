@@ -1,14 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
+import { X, ExternalLink, Loader2, ShieldCheck, CheckCircle2 } from "lucide-react";
 
 interface LeadCaptureModalProps {
   isOpen:      boolean;
   onClose:     () => void;
   onSuccess?:  () => void;
   propertyId:  string;
-  externalUrl: string;
   propertyTitle?: string;
 }
 
@@ -25,15 +24,16 @@ const EMPTY: FormState = {
 };
 
 export default function LeadCaptureModal({
-  isOpen, onClose, onSuccess, propertyId, externalUrl, propertyTitle,
+  isOpen, onClose, onSuccess, propertyId, propertyTitle,
 }: LeadCaptureModalProps) {
   const [form,    setForm]    = useState<FormState>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   /* Reset form whenever modal opens */
   useEffect(() => {
-    if (isOpen) { setForm(EMPTY); setError(null); }
+    if (isOpen) { setForm(EMPTY); setError(null); setSuccess(false); }
   }, [isOpen]);
 
   /* Close on Escape */
@@ -72,9 +72,9 @@ export default function LeadCaptureModal({
         return;
       }
 
-      /* Success — unlock content, open external listing, close modal */
+      /* Success — unlock content and show confirmation */
       onSuccess?.();
-      window.open(externalUrl, "_blank", "noopener,noreferrer");
+      setSuccess(true);
     } catch {
       setError("Erreur de connexion. Vérifiez votre réseau et réessayez.");
     } finally {
@@ -137,6 +137,25 @@ export default function LeadCaptureModal({
               </div>
 
               {/* Body */}
+              {success ? (
+                <div className="px-6 py-8 flex flex-col items-center text-center gap-4">
+                  <div className="w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
+                    <CheckCircle2 size={28} className="text-emerald-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-white text-base font-black mb-1">Merci !</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      Vos coordonnées ont été enregistrées. La description et les photos de cette annonce sont désormais débloquées.
+                    </p>
+                  </div>
+                  <button
+                    onClick={onClose}
+                    className="w-full py-3.5 bg-gradient-to-r from-[#1E3A8A] to-blue-600 hover:from-blue-800 hover:to-blue-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-900/30"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              ) : (
               <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
 
                 <p className="text-gray-400 text-xs leading-relaxed">
@@ -263,6 +282,7 @@ export default function LeadCaptureModal({
                 </div>
 
               </form>
+              )}
             </motion.div>
           </motion.div>
         </>

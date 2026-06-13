@@ -5,19 +5,15 @@ export interface EmailPayload {
 }
 
 export async function sendEmail({ to, subject, body }: EmailPayload): Promise<void> {
-  try {
-    const html = buildHtml(subject, body);
-    console.log(
-      [
-        "📧 EMAIL SENT",
-        `To:      ${to}`,
-        `Subject: ${subject}`,
-        `HTML:\n${html}`,
-      ].join("\n"),
-    );
-  } catch (err) {
-    console.error("[sendEmail] failed silently:", err);
-  }
+  const html = buildHtml(subject, body);
+  console.log(
+    [
+      "📧 EMAIL SENT",
+      `To:      ${to}`,
+      `Subject: ${subject}`,
+      `HTML:\n${html}`,
+    ].join("\n"),
+  );
 }
 
 function buildHtml(subject: string, body: string): string {
