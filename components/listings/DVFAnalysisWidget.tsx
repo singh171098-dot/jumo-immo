@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MapPin, AlertCircle, SearchX, BadgeCheck } from "lucide-react";
 import { formatPrice, formatPricePerM2 } from "../../lib/utils/formatters";
 import FairScoreBadge from "./FairScoreBadge";
+import DVFTrendChart from "./DVFTrendChart";
 import type { DVFEstimationData } from "../../lib/dvf";
 
 export interface DVFAnalysisWidgetProps {
@@ -40,6 +41,7 @@ function SkeletonCard() {
         <div className="h-5 bg-white/10 rounded w-2/3" />
         <div className="h-5 bg-white/10 rounded w-full" />
         <div className="h-5 bg-white/10 rounded w-1/2" />
+        <div className="h-40 bg-white/10 rounded" />
       </div>
     </div>
   );
@@ -99,6 +101,7 @@ export default function DVFAnalysisWidget({
           confidence: json.confidence,
           transactionCount: json.transactionCount,
           averagePricePerM2: json.averagePricePerM2,
+          trend: json.trend,
         });
 
         if (!cancelled) setState({ status: "success", data: json, locationQuery });
@@ -215,6 +218,11 @@ export default function DVFAnalysisWidget({
         <span className="inline-flex items-center gap-1.5 text-[9px] font-bold px-2.5 py-1 rounded-full border bg-emerald-500/10 border-emerald-500/20 text-emerald-400 uppercase tracking-wide">
           <BadgeCheck size={11} /> Source : Données DVF officielles — Ministère des Finances
         </span>
+      </div>
+
+      {/* 5-year market trend */}
+      <div className="pt-4">
+        <DVFTrendChart trend={data.trend} />
       </div>
     </div>
   );

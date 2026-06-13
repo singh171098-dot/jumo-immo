@@ -33,6 +33,7 @@ export interface DVFEstimationData {
 }
 
 const COMPARABLES_LIMIT = 5;
+const TREND_YEARS_LIMIT = 5;
 const POSTAL_CODE_ROW_LIMIT = 2_000;
 const DEPARTMENT_ROW_LIMIT = 500;
 
@@ -127,6 +128,8 @@ export async function getDVFEstimationData(locationString: string): Promise<DVFE
       averagePricePerM2: Math.round(bucket.totalValue / bucket.totalSurface),
       transactionCount: bucket.count,
     }))
+    .sort((a, b) => b.year - a.year)
+    .slice(0, TREND_YEARS_LIMIT)
     .sort((a, b) => a.year - b.year);
 
   return {
