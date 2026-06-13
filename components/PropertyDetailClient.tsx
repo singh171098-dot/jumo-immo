@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useTransition } from "react";
+import { useState, useRef, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toggleFavorite } from "../app/actions/favorites";
 import Link from "next/link";
@@ -18,6 +18,7 @@ import VisitBooker from "./VisitBooker";
 import NegotiationAssistant from "./NegotiationAssistant";
 import LeadCaptureModal from "./LeadCaptureModal";
 import AuthModal from "./AuthModal";
+import DVFAnalysisWidget from "./listings/DVFAnalysisWidget";
 
 /* ── Fallback gallery when no images uploaded ─────────────────────────────── */
 const FALLBACK_GALLERY = [
@@ -30,32 +31,6 @@ const DPE_BG: Record<string, string> = {
   A: "bg-emerald-500", B: "bg-lime-500",  C: "bg-yellow-400",
   D: "bg-orange-400",  E: "bg-orange-500", F: "bg-red-500", G: "bg-red-700",
 };
-
-/* ── FairScore donut gauge ────────────────────────────────────────────────── */
-function FairScoreGauge({ score }: { score: number }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-
-  const r = 38;
-  const circ = 2 * Math.PI * r;
-  const offset = mounted ? circ - (score / 100) * circ : circ;
-  const color = score >= 80 ? "#10B981" : score >= 60 ? "#F59E0B" : "#EF4444";
-
-  return (
-    <svg width={96} height={96} viewBox="0 0 96 96" aria-label={`FairScore ${score}`}>
-      <circle cx={48} cy={48} r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={7} />
-      <circle
-        cx={48} cy={48} r={r} fill="none"
-        stroke={color} strokeWidth={7} strokeLinecap="round"
-        strokeDasharray={circ} strokeDashoffset={offset}
-        transform="rotate(-90 48 48)"
-        style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.16,1,0.3,1) 0.3s" }}
-      />
-      <text x={48} y={46} textAnchor="middle" fill="white" fontSize={22} fontWeight={800} fontFamily="system-ui">{score}</text>
-      <text x={48} y={61} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize={8} fontFamily="system-ui" letterSpacing={1.5}>SCORE</text>
-    </svg>
-  );
-}
 
 /* ── Props ────────────────────────────────────────────────────────────────── */
 export interface PropertyDetailProps {
@@ -123,37 +98,9 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
   /* Derived metrics */
   const pricePerSqm   = Math.round(p.price / p.surface);
   const agencySavings = Math.round(p.price * 0.05);
-  const hasDvfData    = p.cityAvgPerSqm > 0;
-  const hasFairScore  = p.fairScore > 0;
-  const diff = hasDvfData
-    ? Math.round(((pricePerSqm - p.cityAvgPerSqm) / p.cityAvgPerSqm) * 100)
-    : null;
   const priceDrop = p.hasOriginalPrice
     ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
     : 0;
-
-  const scoreLabel = !hasFairScore ? "Non analysé"
-    : p.fairScore >= 80 ? "Prix juste"
-    : p.fairScore >= 60 ? "À négocier"
-    : "Surévalué";
-  const scoreColor = !hasFairScore ? "text-gray-500"
-    : p.fairScore >= 80 ? "text-emerald-400"
-    : p.fairScore >= 60 ? "text-amber-400"
-    : "text-red-400";
-
-  const verdictCopy = diff === null
-    ? "Données DVF non disponibles pour cette annonce partenaire."
-    : diff > 10  ? `Prix ${diff}% au-dessus du marché DVF — marge de négociation possible.`
-    : diff >= 0  ? `Prix aligné avec le marché DVF local (+${diff}%). Bonne opportunité.`
-                 : `Prix ${Math.abs(diff)}% sous le marché DVF — affaire à saisir rapidement.`;
-  const verdictBg = diff === null ? "bg-gray-500/10 border border-gray-500/20"
-    : diff > 10  ? "bg-red-500/10 border border-red-500/20"
-    : diff >= 0  ? "bg-blue-500/10 border border-blue-500/20"
-                 : "bg-emerald-500/10 border border-emerald-500/20";
-  const verdictText = diff === null ? "text-gray-400"
-    : diff > 10  ? "text-red-300"
-    : diff >= 0  ? "text-blue-300"
-                 : "text-emerald-300";
 
   const dpeBg = DPE_BG[p.dpe] ?? "bg-gray-500";
 
@@ -546,55 +493,12 @@ export default function PropertyDetailClient(p: PropertyDetailProps) {
             transition={{ duration: 0.6, delay: 0.25 }}
           >
 
-            {/* FairScore analysis card */}
-            <div className="rounded-2xl bg-white/[0.04] backdrop-blur-xl border border-white/10 p-6">
-
-              {/* Score gauge row */}
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Analyse DVF</p>
-                  <p className="text-2xl font-black text-white">{scoreLabel}</p>
-                  <p className={`text-xs font-semibold mt-0.5 ${scoreColor}`}>
-                    {hasFairScore ? `FairScore™ ${p.fairScore} / 100` : isPartner ? "Annonce partenaire" : "Score non calculé"}
-                  </p>
-                </div>
-                {hasFairScore
-                  ? <FairScoreGauge score={p.fairScore} />
-                  : (
-                    <div className="w-24 h-24 rounded-full border-2 border-gray-700 flex items-center justify-center">
-                      <span className="text-gray-600 text-xs font-bold text-center leading-tight">N/A</span>
-                    </div>
-                  )
-                }
-              </div>
-
-              {/* DVF comparison rows */}
-              <div className="space-y-3 pt-4 border-t border-white/10">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-400">Prix demandé / m²</span>
-                  <span className="font-bold text-white">{formatPrice(pricePerSqm)}</span>
-                </div>
-                {hasDvfData && (
-                  <>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-400">Marché DVF — {p.city}</span>
-                      <span className="font-bold text-blue-400">{formatPrice(p.cityAvgPerSqm)} / m²</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-400">Écart au marché</span>
-                      <span className={`font-bold ${diff! > 0 ? "text-red-400" : "text-emerald-400"}`}>
-                        {diff! > 0 ? `+${diff}%` : `${diff}%`}
-                      </span>
-                    </div>
-                  </>
-                )}
-
-                {/* Verdict */}
-                <div className={`rounded-xl px-3.5 py-3 text-xs font-medium leading-relaxed ${verdictBg} ${verdictText}`}>
-                  {verdictCopy}
-                </div>
-              </div>
-            </div>
+            {/* DVF analysis widget */}
+            <DVFAnalysisWidget
+              listingPrice={p.price}
+              listingSurface={p.surface}
+              listingCity={p.city}
+            />
 
             {/* Agency savings banner */}
             <div className="rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-500 p-5">

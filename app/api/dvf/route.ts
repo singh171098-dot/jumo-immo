@@ -12,7 +12,12 @@ export async function GET(req: Request) {
 
   try {
     const data = await getDvfEstimationData(postalCode, city);
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: {
+        // DVF data is refreshed at most a few times a year — safe to cache for a day.
+        "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=3600",
+      },
+    });
   } catch (error) {
     console.error("[dvf] query error:", error);
     return NextResponse.json({ error: "Erreur serveur. Veuillez réessayer." }, { status: 500 });
