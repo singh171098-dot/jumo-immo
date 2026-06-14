@@ -8,8 +8,8 @@ import { TrendingUp } from "lucide-react";
 import { formatPricePerM2 } from "../../lib/utils/formatters";
 import type { DVFTrendPoint } from "../../lib/dvf";
 
-interface DVFTrendChartProps {
-  trend: DVFTrendPoint[];
+export interface DVFTrendChartProps {
+  data: DVFTrendPoint[];
 }
 
 function CustomTooltip({ active, payload, label }: Partial<TooltipContentProps<ValueType, NameType>>) {
@@ -26,7 +26,7 @@ function CustomTooltip({ active, payload, label }: Partial<TooltipContentProps<V
   );
 }
 
-export default function DVFTrendChart({ trend }: DVFTrendChartProps) {
+export default function DVFTrendChart({ data }: DVFTrendChartProps) {
   return (
     <div className="rounded-2xl bg-white/[0.04] backdrop-blur-sm border border-white/10 p-5">
       <div className="flex items-center gap-2.5 mb-1">
@@ -39,20 +39,20 @@ export default function DVFTrendChart({ trend }: DVFTrendChartProps) {
         </div>
       </div>
 
-      {trend.length < 2 ? (
+      {data.length < 2 ? (
         <p className="text-xs text-gray-500 mt-3">
-          Historique insuffisant pour afficher une tendance fiable
+          Historique insuffisant pour afficher une tendance
         </p>
       ) : (
         <div className="h-56 mt-3 -ml-2">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trend} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+            <LineChart data={data} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
               <XAxis dataKey="year" stroke="#7A8599" fontSize={11} tickLine={false} axisLine={false} />
               <YAxis
                 stroke="#7A8599" fontSize={11} tickLine={false} axisLine={false}
-                tickFormatter={(v: number) => `${Math.round(v / 100) / 10}k€`}
-                width={48}
+                tickFormatter={(v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v))}
+                width={56}
               />
               <Tooltip content={<CustomTooltip />} />
               <Line

@@ -18,6 +18,14 @@ export interface DVFTrendPoint {
   transactionCount: number;
 }
 
+export interface DVFRecentSale {
+  date: string;
+  surface: number;
+  price: number;
+  pricePerM2: number;
+  type: string;
+}
+
 export interface DVFEstimationData {
   hasData: boolean;
   postalCode: string;
@@ -30,10 +38,12 @@ export interface DVFEstimationData {
   confidence: "high" | "medium" | "low" | null;
   comparables: DVFComparable[];
   trend: DVFTrendPoint[];
+  recentSales: DVFRecentSale[];
 }
 
 const COMPARABLES_LIMIT = 5;
 const TREND_YEARS_LIMIT = 5;
+const RECENT_SALES_LIMIT = 5;
 const POSTAL_CODE_ROW_LIMIT = 2_000;
 const DEPARTMENT_ROW_LIMIT = 500;
 
@@ -50,6 +60,7 @@ function emptyResult(): DVFEstimationData {
     confidence: null,
     comparables: [],
     trend: [],
+    recentSales: [],
   };
 }
 
@@ -132,6 +143,14 @@ export async function getDVFEstimationData(locationString: string): Promise<DVFE
     .slice(0, TREND_YEARS_LIMIT)
     .sort((a, b) => a.year - b.year);
 
+  const recentSales: DVFRecentSale[] = transactions.slice(0, RECENT_SALES_LIMIT).map(t => ({
+    date: t.date.toISOString().split("T")[0],
+    surface: t.surface,
+    price: t.price,
+    pricePerM2: t.surface > 0 ? Math.round(t.price / t.surface) : 0,
+    type: t.propertyType,
+  }));
+
   return {
     hasData: true,
     postalCode: resolved.postalCode,
@@ -144,5 +163,6 @@ export async function getDVFEstimationData(locationString: string): Promise<DVFE
     confidence: resolved.confidence,
     comparables,
     trend,
+    recentSales,
   };
 }

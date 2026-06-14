@@ -4,6 +4,7 @@ import { MapPin, AlertCircle, SearchX, BadgeCheck } from "lucide-react";
 import { formatPrice, formatPricePerM2 } from "../../lib/utils/formatters";
 import FairScoreBadge from "./FairScoreBadge";
 import DVFTrendChart from "./DVFTrendChart";
+import DVFRecentSalesTable from "./DVFRecentSalesTable";
 import type { DVFEstimationData } from "../../lib/dvf";
 
 export interface DVFAnalysisWidgetProps {
@@ -42,6 +43,7 @@ function SkeletonCard() {
         <div className="h-5 bg-white/10 rounded w-full" />
         <div className="h-5 bg-white/10 rounded w-1/2" />
         <div className="h-40 bg-white/10 rounded" />
+        <div className="h-32 bg-white/10 rounded" />
       </div>
     </div>
   );
@@ -101,7 +103,8 @@ export default function DVFAnalysisWidget({
           confidence: json.confidence,
           transactionCount: json.transactionCount,
           averagePricePerM2: json.averagePricePerM2,
-          trend: json.trend,
+          trend: json.trend?.length ?? 0,
+          recentSales: json.recentSales?.length ?? 0,
         });
 
         if (!cancelled) setState({ status: "success", data: json, locationQuery });
@@ -213,16 +216,23 @@ export default function DVFAnalysisWidget({
             Localisation résolue via API Adresse officielle
           </p>
         )}
-
-        {/* Section D — Data source badge */}
-        <span className="inline-flex items-center gap-1.5 text-[9px] font-bold px-2.5 py-1 rounded-full border bg-emerald-500/10 border-emerald-500/20 text-emerald-400 uppercase tracking-wide">
-          <BadgeCheck size={11} /> Source : Données DVF officielles — Ministère des Finances
-        </span>
       </div>
 
       {/* 5-year market trend */}
       <div className="pt-4">
-        <DVFTrendChart trend={data.trend} />
+        <DVFTrendChart data={data.trend} />
+      </div>
+
+      {/* Recent real sales */}
+      <div className="pt-4">
+        <DVFRecentSalesTable sales={data.recentSales} />
+      </div>
+
+      {/* Section D — Data source footnote */}
+      <div className="pt-4">
+        <span className="inline-flex items-center gap-1.5 text-[9px] font-bold px-2.5 py-1 rounded-full border bg-emerald-500/10 border-emerald-500/20 text-emerald-400 uppercase tracking-wide">
+          <BadgeCheck size={11} /> Source : Données DVF officielles — Ministère des Finances
+        </span>
       </div>
     </div>
   );
