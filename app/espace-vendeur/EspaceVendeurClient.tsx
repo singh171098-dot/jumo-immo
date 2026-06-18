@@ -232,7 +232,7 @@ export default function EspaceVendeurClient({
       <aside className="w-64 bg-[#1E3A8A] text-white flex flex-col fixed h-full shadow-2xl z-20">
         <div className="px-5 py-4 border-b border-blue-800/50">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Jumo-Immo" className="h-9 w-auto" style={{ mixBlendMode: "screen" }} />
+          <img src="/logo.png" alt="Jumo-Immo" className="h-9 w-auto object-contain" />
           <p className="text-blue-200 text-[10px] mt-2 uppercase tracking-widest font-bold">Espace Vendeur</p>
         </div>
 

@@ -7,7 +7,7 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
       <header className="border-b border-white/[0.06] px-6 py-4 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Jumo-Immo" className="h-8 w-auto" style={{ mixBlendMode: "screen" }} />
+          <img src="/logo.png" alt="Jumo-Immo" className="h-8 w-auto object-contain" />
         </Link>
         <p className="text-[10px] text-gray-600 uppercase tracking-widest font-bold">
           Configuration du profil

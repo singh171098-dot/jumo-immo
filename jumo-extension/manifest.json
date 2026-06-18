@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Jumo-Immo Analyzer",
+  "version": "1.0.0",
+  "description": "Scrape French real estate listings (SeLoger, Leboncoin, Bien'ici) and import them into Jumo-Immo.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["<all_urls>", "http://localhost:3000/*"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Jumo-Immo Analyzer"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["logo.png"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

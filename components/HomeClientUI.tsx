@@ -175,12 +175,8 @@ const STYLE_TAG = `
 .jumo-nav-links { display: flex; align-items: center; gap: 4px; }
 
 @media (max-width: 767px) {
-  /* NavBar — mobile: solid opaque background fixes mix-blend-mode: screen on the logo */
   .jumo-nav {
     padding: 10px 16px !important;
-    background: #060B14 !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
   }
   .jumo-nav-link     { padding: 6px 10px !important; font-size: 11px !important; }
   .jumo-nav-links    { display: none !important; }
@@ -424,13 +420,14 @@ function NavBar({ currentView, setCurrentView, sessionUser, onOpenAuth }: NavBar
     }}>
       <div
         onClick={() => setCurrentView("landing")}
-        style={{ cursor: "pointer", display: "flex", alignItems: "center", background: "transparent", padding: 0, WebkitTapHighlightColor: "transparent" }}
+        className="flex items-center"
+        style={{ cursor: "pointer", background: "transparent", padding: 0, WebkitTapHighlightColor: "transparent" }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/logo.png"
           alt="Jumo-Immo"
-          style={{ height: 32, width: "auto", display: "block", objectFit: "contain", mixBlendMode: "screen" }}
+          className="block h-16 md:h-20 w-auto object-contain max-w-none"
         />
       </div>
 

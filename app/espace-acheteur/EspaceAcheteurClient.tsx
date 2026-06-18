@@ -867,7 +867,7 @@ export default function EspaceAcheteurClient({
           {/* Logo */}
           <div className="px-5 py-5 border-b border-white/[0.06]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Jumo-Immo" className="h-9 w-auto" style={{ mixBlendMode: "screen" }} />
+            <img src="/logo.png" alt="Jumo-Immo" className="h-9 w-auto object-contain" />
             <p className="text-[10px] text-emerald-400/80 mt-2.5 uppercase tracking-widest font-bold">Espace Acheteur</p>
           </div>
 
