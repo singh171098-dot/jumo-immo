@@ -49,15 +49,6 @@ console.log("🚀 JUMO-IMMO EXTENSION V2 LOADED");
       animation: jumo-spin 0.7s linear infinite;
       display: none;
     }
-    #${BUTTON_ID} .jumo-logo {
-      width: 32px;
-      height: 32px;
-      object-fit: contain;
-      background: transparent;
-      margin-right: 12px;
-      flex-shrink: 0;
-      display: inline-block;
-    }
     #${BUTTON_ID}.jumo-loading .jumo-spinner { display: inline-block; }
     #${BUTTON_ID}.jumo-loading .jumo-logo { display: none; }
     #${BUTTON_ID}.jumo-loading .jumo-label { display: none; }
@@ -79,6 +70,7 @@ console.log("🚀 JUMO-IMMO EXTENSION V2 LOADED");
   const logoImg = document.createElement("img");
   logoImg.className = "jumo-logo";
   logoImg.src = chrome.runtime.getURL("logo.png");
+  logoImg.style.cssText = "width: 28px; height: 28px; object-fit: contain; margin-right: 10px;";
   logoImg.alt = "";
   logoImg.setAttribute("aria-hidden", "true");
 

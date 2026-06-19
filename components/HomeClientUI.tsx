@@ -421,13 +421,14 @@ function NavBar({ currentView, setCurrentView, sessionUser, onOpenAuth }: NavBar
       <div
         onClick={() => setCurrentView("landing")}
         className="flex items-center"
-        style={{ cursor: "pointer", background: "transparent", padding: 0, WebkitTapHighlightColor: "transparent" }}
+        style={{ cursor: "pointer", WebkitTapHighlightColor: "transparent" }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/logo.png"
           alt="Jumo-Immo"
-          className="block h-16 md:h-20 w-auto object-contain max-w-none"
+          style={{ height: "70px", width: "auto", objectFit: "contain", display: "block" }}
+          className="max-w-none"
         />
       </div>
 
